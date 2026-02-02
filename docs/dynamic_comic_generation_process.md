@@ -619,7 +619,24 @@
 
 ---
 
-## 9. 术语表
+## 9. 子文档索引
+
+详细的阶段说明文档已创建在 `docs/stages/` 目录下：
+
+| 阶段 | 文档 | 描述 |
+|-----|------|------|
+| 阶段1 | [01_input_stage.md](stages/01_input_stage.md) | 输入阶段 - 用户输入接收与处理 |
+| 阶段2 | [02_script_generation_stage.md](stages/02_script_generation_stage.md) | 剧本生成 - LLM驱动的故事创作 |
+| 阶段3 | [03_scene_description_stage.md](stages/03_scene_description_stage.md) | 画面描述 - 提示词工程 |
+| 阶段4 | [04_image_generation_stage.md](stages/04_image_generation_stage.md) | 图像生成 - 文生图与角色一致性 |
+| 阶段5 | [05_storyboard_stage.md](stages/05_storyboard_stage.md) | 分镜编排 - 镜头序列与节奏控制 |
+| 阶段6 | [06_animation_stage.md](stages/06_animation_stage.md) | 动画化 - 运镜与画面元素动画 |
+| 阶段7 | [07_audio_generation_stage.md](stages/07_audio_generation_stage.md) | 音频生成 - 配音、音效与BGM |
+| 阶段8 | [08_text_subtitle_stage.md](stages/08_text_subtitle_stage.md) | 文字字幕 - 对话气泡与字幕 |
+| 阶段9 | [09_composition_rendering_stage.md](stages/09_composition_rendering_stage.md) | 合成渲染 - 多轨道合成与编码 |
+| 阶段10 | [10_output_delivery_stage.md](stages/10_output_delivery_stage.md) | 输出交付 - 格式化与分发 |
+
+## 10. 术语表
 
 | 术语 | 说明 |
 |------|------|
