@@ -8,3 +8,9 @@
 /dataSources.local.xml
 # 基于编辑器的 HTTP 客户端请求
 /httpRequests/
+/FrameLeap.iml
+/misc.xml
+/modules.xml
+/inspectionProfiles/profiles_settings.xml
+/inspectionProfiles/Project_Default.xml
+/vcs.xml
