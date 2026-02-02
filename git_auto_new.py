@@ -355,7 +355,7 @@ def main():
         git.show_git_status()
         sys.exit(0)
 
-    if args.no_add_all and not args.files:
+    if getattr(args, 'no_add_all', False) and not args.files:
         print("❌ 错误：使用 --no-add-all 时必须指定 --files")
         sys.exit(1)
 
