@@ -7,12 +7,12 @@ FrameLeap 是一个端到端的动态漫生成解决方案，从用户的一句�
 ## 核心特性
 
 ### 智能创作流程
-- **AI剧本生成**：基于LLM的完整剧本创作，包含故事规划、角色设定、分镜脚本
-- **角色一致性控制**：使用LoRA、IP-Adapter等技术确保角色跨场景一致
+- **AI剧本生成**：基于云端 LLM API 的完整剧本创作，包含故事规划、角色设定、分镜脚本
+- **角色一致性控制**：通过提示词工程和参考图像确保角色跨场景一致
 - **智能分镜编排**：自动应用专业影视语言，包括景别选择、运镜设计、节奏控制
-- **高质量画面生成**：基于Stable Diffusion等文生图模型的静态图像生成
+- **高质量画面生成**：调用云端图像生成 API 生成静态图像
 - **动态效果合成**：运镜动画、角色动画、环境特效、帧插值
-- **专业音频制作**：TTS配音、音效生成、BGM匹配、多轨混音
+- **专业音频制作**：云端 TTS 配音、音效生成、BGM 匹配、多轨混音
 
 ### 视觉叙事专业支持
 - **景别叙事功能**：大远景到特写的完整景别体系，配合叙事目的
@@ -40,7 +40,17 @@ FrameLeap/
 │       ├── 08_text_subtitle_stage.md        # 文字字幕
 │       ├── 09_composition_rendering_stage.md # 合成渲染
 │       └── 10_output_delivery_stage.md      # 输出交付
-├── src/                            # 源代码（待开发）
+├── src/                            # 源代码
+│   ├── frameleap/                  # 主模块
+│   │   ├── web.py                  # Flask Web 服务
+│   │   ├── generator.py            # 核心生成器
+│   │   ├── config/                 # 配置模块
+│   │   ├── models/                 # 数据模型
+│   │   ├── stages/                 # 10阶段处理
+│   │   └── utils/                  # 工具模块
+│   └── frontend/                   # Vue.js 前端
+├── static/                         # 静态资源（由 Vue 构建）
+├── templates/                      # 模板文件（由 Vue 构建）
 └── README.md                       # 本文件
 ```
 
@@ -49,9 +59,10 @@ FrameLeap/
 ### 环境要求
 
 - Python 3.8+
-- CUDA 11.0+ (GPU加速)
-- 8GB+ VRAM (图像生成)
-- 12GB+ VRAM (动画生成)
+- 依赖 API 服务（无本地 GPU 要求）
+  - LLM API：OpenAI / DeepSeek / 等兼容服务
+  - 图像生成 API：兼容 SD/Flux 等的云端服务
+  - TTS API：Azure / 等语音合成服务
 
 ### 安装
 
@@ -66,14 +77,38 @@ pip install -r requirements.txt
 
 ### 使用示例
 
-```python
-from frameleap import FrameLeapGenerator
+#### Web 界面
+```bash
+# 启动 Flask Web 服务
+python -m frameleap.web
 
-# 初始化生成器
-generator = FrameLeapGenerator()
+# 或直接运行
+python src/frameleap/web.py
+
+# 访问 http://localhost:5000
+```
+
+#### 前端开发
+```bash
+# 进入前端目录
+cd src/frontend
+
+# 安装依赖
+npm install
+
+# 开发模式
+npm run dev
+
+# 构建生产版本
+npm run build
+```
+
+#### Python 代码
+```python
+from frameleap import generate
 
 # 一键生成动态漫
-result = generator.generate(
+result = generate(
     input_text="一个少年在雨夜中遇到了神秘少女",
     style="anime",           # 风格：anime, realistic, watercolor等
     duration=180,            # 目标时长（秒）
@@ -95,9 +130,9 @@ result.save("output.mp4")
 | 角色 | 推荐文档 |
 |-----|---------|
 | 产品经理 | 主流程文档 + 阶段1 + 阶段10 |
-| 后端开发 | 全部阶段文档 |
-| AI工程师 | 阶段2 + 阶段3 + 阶段4 + 阶段6 + 阶段7 |
-| 前端开发 | 主流程文档 + 阶段1 + 阶段10 |
+| 后端开发（Flask） | 全部阶段文档 |
+| 前端开发（Vue.js） | 主流程文档 + 阶段1 + 阶段10 |
+| API 集成工程师 | 阶段2 + 阶段4 + 阶段7 |
 | 导演/编辑 | 主流程文档 + 术语表 |
 | 测试人员 | 各阶段的质量控制部分 |
 
@@ -105,16 +140,14 @@ result.save("output.mp4")
 
 | 模块 | 技术选择 |
 |-----|---------|
-| 语言模型 | GPT-4 / Claude / 本地模型 |
-| 图像生成 | Stable Diffusion XL / SD3 / Flux |
-| 角色一致性 | LoRA / IP-Adapter / ControlNet |
-| 超分辨率 | Real-ESRGAN / SwinIR |
-| 动画化 | AnimateDiff / LivePortrait / 运镜算法 |
-| 帧插值 | RIFE / DAIN / FILM |
-| TTS | Azure TTS / GPT-SoVITS / VITS |
-| 音效生成 | AudioLDM / 音效库 |
-| 音乐生成 | Suno / Udio / MusicGen |
-| 视频处理 | FFmpeg / OpenCV / MoviePy |
+| 后端框架 | Flask |
+| 前端框架 | Vue.js |
+| 语言模型 | OpenAI API / DeepSeek API / 等 |
+| 图像生成 | 云端 API（SD/Flux 兼容服务） |
+| TTS | Azure TTS / 云端语音服务 |
+| 音效生成 | 云端 API / 音效库 |
+| 音乐生成 | Suno / Udio / MusicGen API |
+| 视频处理 | FFmpeg / MoviePy |
 
 ## 开发工作流
 
