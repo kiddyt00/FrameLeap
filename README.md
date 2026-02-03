@@ -180,16 +180,6 @@ python git_auto_new.py -h
 - [ ] 多平台适配
 - [ ] 性能优化
 
-## 贡献指南
-
-欢迎贡献代码、文档或提出建议！
-
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`python git_auto_new.py "feat: 添加xxx功能"`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
 ---
 
 *最后更新：2026-02-03*
