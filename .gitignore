@@ -41,3 +41,7 @@ Thumbs.db
 outputs/
 temp/
 *.log
+
+# Environment variables
+.env
+.env.local

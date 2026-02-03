@@ -73,6 +73,10 @@ cd FrameLeap
 
 # 安装依赖
 pip install -r requirements.txt
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，填入你的 API 密钥
 ```
 
 ### 使用示例
