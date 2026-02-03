@@ -1,34 +1,25 @@
 """
-FrameLeap - AI驱动的动态漫自动生成系统
+FrameLeap - 个人动态漫生成器
 
-FrameLeap是一个端到端的动态漫生成解决方案，从用户的一句话或短文输入出发，
-自动完成剧本创作、角色设计、画面生成、分镜编排、动画制作、音频合成等全流程。
+快速开始:
+    from frameleap import generate
+
+    result = generate("一个少年在雨夜中遇到了神秘少女")
+    if result.success:
+        print(f"视频已生成: {result.video_path}")
 """
 
 __version__ = "0.1.0"
-__author__ = "FrameLeap Team"
 
-from frameleap.generator import FrameLeapGenerator
-from frameleap.config import Settings
-from frameleap.models import (
-    ScriptData,
-    SceneData,
-    ShotData,
-    CharacterData,
-    AudioData,
-    VideoConfig,
-    StyleConfig,
-)
+from frameleap.config import config, Config
+from frameleap.generator import Generator, generate
+from frameleap.models import GenerationResult
 
 __all__ = [
-    "FrameLeapGenerator",
-    "Settings",
-    "ScriptData",
-    "SceneData",
-    "ShotData",
-    "CharacterData",
-    "AudioData",
-    "VideoConfig",
-    "StyleConfig",
+    "config",
+    "Config",
+    "Generator",
+    "generate",
+    "GenerationResult",
     "__version__",
 ]
