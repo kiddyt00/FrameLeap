@@ -97,21 +97,36 @@
 
 ### 3.1 风格偏好
 
-**风格类型**：
+**艺术风格**：
 
-| 风格类别 | 选项 | 特征描述 |
-|---------|------|---------|
-| 艺术风格 | 日式漫画 | 线稿+赛璐璐上色，大眼小嘴比例 |
-| | 美式漫画 | 粗线条，写实比例，阴影厚重 |
-| | 韩漫风格 | 精致线稿，色彩华丽，网纸效果 |
-| | 水彩风 | 水彩质感，边缘柔和，色彩通透 |
-| | 油画风 | 厚重笔触，质感丰富，色彩浓郁 |
-| | 像素风 | 8-bit/16-bit像素风格，复古感 |
-| | 矢量扁平 | 扁平化设计，简洁明快 |
-| 渲染风格 | 2D手绘 | 传统手绘质感 |
-| | 2.5D轻立体 | 2D画面带立体感 |
-| | 3D渲染 | 完全3D建模渲染 |
-| | 混合风格 | 2D角色+3D背景 |
+| 风格类别 | 选项 | 特征描述 | 关键词 |
+|---------|------|---------|--------|
+| 绘画风格 | 日式漫画 | 线稿+赛璐璐上色，大眼小嘴比例 | anime, manga, cel shading |
+| | 美式漫画 | 粗线条，写实比例，阴影厚重 | comic book, bold lines |
+| | 韩漫风格 | 精致线稿，色彩华丽，网纸效果 | manhwa, webtoon, colorful |
+| | 国漫风格 | 融合日韩风格，水墨元素 | manhua, chinese style, ink |
+| | 水彩风 | 水彩质感，边缘柔和，色彩通透 | watercolor, soft edges, wash |
+| | 油画风 | 厚重笔触，质感丰富，色彩浓郁 | oil painting, thick brushstrokes |
+| | 厚涂 | 厚重颜料堆积，立体质感 | impasto, textured |
+| | 赛璐璐 | 清晰轮廓，平涂色彩，明快阴影 | cel shading, flat color |
+| | 柔和绘 | 柔和笔触，朦胧感，细腻渐变 | soft painting, dreamy |
+| | 像素风 | 8-bit/16-bit像素风格，复古感 | pixel art, 8-bit, 16-bit |
+| | 矢量扁平 | 扁平化设计，简洁明快 | flat design, vector, minimal |
+| | 线稿风 | 纯线条或线条为主，简洁有力 | line art, monoline, sketch |
+| 渲染风格 | 2D手绘 | 传统手绘质感 | 2D, hand drawn, traditional |
+| | 2.5D轻立体 | 2D画面带立体感 | 2.5D, semi-3D |
+| | 3D渲染 | 完全3D建模渲染 | 3D render, CGI |
+| | 2D+3D混合 | 2D角色+3D背景 | mixed, 2D character 3D background |
+| 时代风格 | 古风中国 | 水墨元素，传统服饰 | chinese traditional, hanfu |
+| | 日式和风 | 和服，樱花，神社 | japanese style, kimono |
+| | 欧式中世纪 | 骑士，城堡，教会 | medieval, knight, castle |
+| | 赛博朋克 | 霓虹灯，高楼，机械义肢 | cyberpunk, neon, futuristic |
+| | 蒸汽朋克 | 蒸汽机械，黄铜齿轮 | steampunk, brass gears |
+| | 废土末世 | 破败建筑，沙漠，荒凉 | post-apocalyptic, wasteland |
+| | 现代都市 | 高楼大厦，街头时尚 | modern city, urban |
+| 题材风格 | 校园生活 | 教室，校服，青春活力 | school, campus, uniform |
+| | 奇幻魔法 | 魔法阵，精灵，龙 | fantasy, magic, elf |
+| | 科幻太空 | 太空船，外星，未来科技 | sci-fi, spaceship, alien |
 
 **风格参数**：
 - 线条强度（0-100）

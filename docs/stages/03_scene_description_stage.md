@@ -73,6 +73,44 @@
 
 ### 3.1 图像生成提示词构建
 
+#### 艺术风格库
+
+| 风格 | 英文 | 提示词示例 |
+|-----|------|----------|
+| 日式漫画 | anime/manga | `anime style, cel shading, clean lines, vibrant colors, manga art` |
+| 美式漫画 | comic book | `comic book style, bold lines, heavy shading, muscular, dynamic poses` |
+| 韩漫风格 | manhwa | `manhwa style, webtoon format, colorful, delicate lines, digital art` |
+| 国漫风格 | manhua | `chinese manhua style, ink wash elements, traditional clothing, elegant` |
+| 水彩风 | watercolor | `watercolor painting, soft edges, wash effects, pastel colors, artistic` |
+| 油画风 | oil painting | `oil painting, thick brushstrokes, rich colors, textured canvas, classical` |
+| 厚涂 | impasto | `impasto technique, heavy texture, palette knife, raised paint surface` |
+| 赛璐璐 | cel shading | `cel shading, flat colors, clean outlines, anime style, vibrant` |
+| 柔和绘 | soft painting | `soft painting style, dreamy, gentle gradients, pastel colors, ethereal` |
+| 像素风 | pixel art | `pixel art, 8-bit, 16-bit, retro game style, limited color palette` |
+| 矢量扁平 | flat vector | `flat design, vector art, minimalist, solid colors, clean shapes` |
+| 线稿风 | line art | `line art, monoline, sketch, clean lines, black and white` |
+
+#### 渲染风格库
+
+| 风格 | 提示词 |
+|-----|--------|
+| 2D手绘 | `2D, hand drawn, traditional art, paper texture, slight imperfections` |
+| 2.5D轻立体 | `2.5D, semi-3D, subtle depth, layered, isometric elements` |
+| 3D渲染 | `3D render, CGI, octane render, unreal engine, volumetric lighting` |
+| 2D+3D混合 | `2D character, 3D background, mixed media, hybrid style` |
+
+#### 时代风格库
+
+| 风格 | 提示词 |
+|-----|--------|
+| 古风中国 | `ancient chinese style, hanfu, traditional architecture, ink elements, elegant` |
+| 日式和风 | `japanese style, kimono, cherry blossom, shrine, torii gate, serene` |
+| 欧式中世纪 | `medieval european, knight, castle, stone architecture, tavern, fantasy` |
+| 赛博朋克 | `cyberpunk, neon lights, futuristic city, holograms, dark atmosphere, rain` |
+| 蒸汽朋克 | `steampunk, brass gears, steam power, victorian clothing, goggles, machinery` |
+| 废土末世 | `post-apocalyptic, wasteland, ruins, abandoned buildings, desert, survival gear` |
+| 现代都市 | `modern city, skyscrapers, street fashion, urban life, contemporary` |
+
 #### 提示词结构模板
 
 **标准提示词结构**：
@@ -84,6 +122,24 @@
 #### 主体描述生成
 
 **角色主体Prompt构建**：
+
+| 属性 | 描述维度 | 常用选项 |
+|-----|---------|---------|
+| 年龄 | child, teenager, young adult, middle-aged, elderly | `16 year old`, `teenage girl`, `young man` |
+| 性别 | male, female, androgynous | `anime girl`, `young woman`, `boy` |
+| 发型 | short, long, messy, sleek, ponytail, twin tails, braided | `short messy black hair`, `long flowing silver hair` |
+| 发色 | black, brown, blonde, red, blue, silver, white, pink, green | `silver hair`, `pink highlights`, `raven black` |
+| 瞳色 | brown, blue, green, amber, red, heterochromia, golden | `amber eyes`, `heterochromia`, `golden eyes` |
+| 瞳孔形状 | normal, cat-like, snake-like, star-shaped | `cat eyes`, `slit pupils` |
+| 体型 | slim, athletic, muscular, petite, curvy | `slim build`, `athletic physique` |
+| 身高 | tall, average, short | `tall`, `petite`, `average height` |
+| 皮肤 | pale, fair, tan, dark | `fair skin`, `pale complexion`, `tan skin` |
+| 服装 | school uniform, casual wear, armor, kimono, dress, suit | `black school uniform`, `white dress`, `battle armor` |
+| 配饰 | glasses, hairpin, necklace, earrings, ribbon, scarf | `red ribbon`, `round glasses` |
+| 表情 | happy, sad, angry, surprised, melancholic, smiling, serious | `melancholic expression`, `gentle smile` |
+| 姿态 | standing, sitting, running, jumping, crouching, lying down | `standing pose`, `dynamic action pose` |
+
+#### 主体描述要素库
 
 
 **主体描述要素库**：
@@ -100,6 +156,58 @@
 | 表情 | happy, sad, angry, surprised, melancholic | melancholic expression |
 
 ### 3.2 环境描述生成
+
+**环境Prompt构建函数**：
+
+```
+环境描述 = [时间] + [天气] + [场景类型] + [场景细节] + [氛围词]
+```
+
+#### 场景类型关键词库
+
+| 场景类型 | 关键词 |
+|---------|--------|
+| 教室 | `classroom, school, desks, chairs, blackboard, windows, chalkboard, school interior` |
+| 卧室 | `bedroom, bed, pillow, blanket, wardrobe, desk, lamp, window, cozy, private room` |
+| 咖啡馆 | `cafe, coffee shop, tables, chairs, warm lighting, menu, counter, cozy atmosphere` |
+| 图书馆 | `library, bookshelves, books, reading tables, quiet, ladder, warm light, knowledge` |
+| 医院 | `hospital, hospital room, bed, medical equipment, white walls, sterile, medical interior` |
+| 实验室 | `laboratory, lab equipment, computers, screens, blue light, technology, research` |
+| 街道 | `street, city street, buildings, sidewalk, streetlights, urban, road, pavement` |
+| 公园 | `park, trees, grass, bench, sky, flowers, path, nature, green space` |
+| 海边 | `beach, ocean, waves, sand, horizon, seaside, coast, shoreline, water` |
+| 山林 | `forest, woods, mountains, trees, path, nature, wilderness, green, sunlight through trees` |
+| 沙漠 | `desert, sand dunes, scorching sun, cactus, barren, arid, heat waves` |
+| 魔法森林 | `magical forest, enchanted woods, glowing plants, mystical, fantasy forest, luminescent` |
+| 天空之城 | `sky city, floating islands, clouds, aerial view, fantasy city, above clouds` |
+| 龙之洞穴 | `dragon cave, lava, treasure, rock walls, dark, fiery, dungeon, cave interior` |
+| 赛博都市 | `cyberpunk city, neon lights, futuristic, holograms, skyscrapers, dark alley, rain` |
+| 太空船 | `spaceship interior, metal, control panel, stars visible through window, sci-fi, technology` |
+| 废弃基地 | `abandoned base, ruins, rust, decay, broken structures, desolate, post-apocalyptic` |
+
+#### 时间关键词库
+
+| 时间 | 关键词 | 光影特征 |
+|-----|--------|---------|
+| 黎明 | `dawn, sunrise, early morning, golden hour, orange sky` | 橙红光线，长阴影 |
+| 早晨 | `morning, bright, fresh sunlight, blue sky` | 明亮清新，高对比 |
+| 正午 | `noon, midday, overhead sun, harsh shadows` | 顶光，强烈阴影 |
+| 下午 | `afternoon, warm sunlight, golden light` | 温暖金色，斜射光 |
+| 黄昏 | `dusk, sunset, twilight, orange and purple sky` | 橙紫渐变，柔和光 |
+| 夜晚 | `night, nighttime, dark, moonlight, stars` | 暗色调，人工光 |
+| 深夜 | `late night, midnight, darkness, silence` | 极暗，稀疏光源 |
+
+#### 天气关键词库
+
+| 天气 | 关键词 | 视觉效果 |
+|-----|--------|---------|
+| 晴朗 | `sunny, clear sky, bright sunlight, blue sky` | 明亮对比，清晰阴影 |
+| 多云 | `cloudy, overcast, clouds covering sky` | 柔和光线，漫反射 |
+| 阴天 | `gloomy, dark clouds, overcast sky, gray` | 低对比，灰暗 |
+| 雨 | `rain, rainy, raindrops, wet surfaces, puddles` | 反光湿润，模糊 |
+| 雪 | `snow, snowy, snowflakes, white ground, winter` | 白色柔和，散射光 |
+| 雾 | `fog, mist, foggy, hazy, low visibility` | 朦胧层次，低对比 |
+| 风暴 | `storm, thunderstorm, lightning, dark clouds` | 戏剧性，强对比 |
 
 **环境Prompt构建函数**：
 
