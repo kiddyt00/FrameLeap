@@ -564,7 +564,7 @@ async def list_trees_api():
                 "id": t.id,
                 "input": t.input_text[:100],
                 "create_time": t.create_time.isoformat(),
-                "status": t.active_path and t.get_node(t.active_path[-1])?.status
+                "status": t.active_path and t.get_node(t.active_path[-1]).status if t.active_path and t.get_node(t.active_path[-1]) else None
             }
             for t in trees
         ]
