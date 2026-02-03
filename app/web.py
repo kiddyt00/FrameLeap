@@ -449,8 +449,8 @@ async def index():
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #eee;
+            background: #f8fafc;
+            color: #1e293b;
             min-height: 100vh;
         }
         .container {
@@ -463,50 +463,60 @@ async def index():
         .header {
             text-align: center;
             margin-bottom: 30px;
+            padding: 30px 0;
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #06b6d4 100%);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.15);
         }
         .header h1 {
-            color: #00d9ff;
+            color: #ffffff;
             font-size: 2.5em;
             margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
         }
         .header p {
-            color: #888;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1em;
         }
 
         /* 输入区域 */
         .input-section {
-            background: rgba(22, 33, 62, 0.8);
-            backdrop-filter: blur(10px);
+            background: #ffffff;
             border-radius: 16px;
-            padding: 25px;
+            padding: 30px;
             margin-bottom: 30px;
-            border: 1px solid rgba(0, 217, 255, 0.2);
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 10px 40px rgba(0, 0, 0, 0.05);
         }
         .input-group {
             margin-bottom: 15px;
         }
         .input-group label {
             display: block;
-            margin-bottom: 8px;
-            color: #00d9ff;
-            font-weight: 500;
+            margin-bottom: 10px;
+            color: #334155;
+            font-weight: 600;
+            font-size: 14px;
         }
         textarea {
             width: 100%;
             height: 120px;
-            background: rgba(15, 52, 96, 0.8);
-            border: 1px solid rgba(0, 217, 255, 0.3);
-            border-radius: 8px;
-            color: #eee;
-            padding: 15px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            color: #1e293b;
+            padding: 16px;
             font-size: 14px;
             resize: vertical;
-            transition: all 0.3s;
+            transition: all 0.2s;
+            font-family: inherit;
         }
         textarea:focus {
             outline: none;
-            border-color: #00d9ff;
-            box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            background: #ffffff;
         }
         .controls {
             display: flex;
@@ -518,68 +528,98 @@ async def index():
             flex: 1;
             min-width: 150px;
             padding: 12px 16px;
-            border-radius: 8px;
-            background: rgba(15, 52, 96, 0.8);
-            color: #eee;
-            border: 1px solid rgba(0, 217, 255, 0.3);
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1;
             cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        select:hover {
+            border-color: #94a3b8;
         }
         select:focus {
             outline: none;
-            border-color: #00d9ff;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
         .btn {
             padding: 12px 32px;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 15px;
             font-weight: 600;
-            transition: all 0.3s;
+            transition: all 0.2s;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #00d9ff, #00f2fe);
-            color: #1a1a2e;
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: #ffffff;
+            box-shadow: 0 2px 10px rgba(37, 99, 235, 0.2);
         }
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 217, 255, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+            background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        }
+        .btn-primary:active {
+            transform: translateY(0);
         }
         .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
+            background: #94a3b8;
         }
 
         /* 进度条 */
         .progress-section {
-            background: rgba(22, 33, 62, 0.8);
+            background: #ffffff;
             border-radius: 16px;
             padding: 25px;
             margin-bottom: 30px;
             display: none;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
         .progress-section.active {
             display: block;
         }
         .progress-bar-container {
-            height: 8px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 4px;
+            height: 10px;
+            background: #f1f5f9;
+            border-radius: 5px;
             overflow: hidden;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
         .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, #00d9ff, #00f2fe, #43e97b);
-            border-radius: 4px;
-            transition: width 0.5s ease;
+            background: linear-gradient(90deg, #2563eb, #3b82f6, #06b6d4);
+            border-radius: 5px;
+            transition: width 0.4s ease;
             width: 0%;
+            position: relative;
+        }
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
         .progress-text {
             text-align: center;
-            color: #888;
+            color: #64748b;
             font-size: 14px;
+            font-weight: 500;
         }
 
         /* 流程树 */
@@ -590,9 +630,10 @@ async def index():
             display: block;
         }
         .flow-title {
-            color: #00d9ff;
-            font-size: 1.3em;
-            margin-bottom: 20px;
+            color: #1e293b;
+            font-size: 1.5em;
+            margin-bottom: 25px;
+            font-weight: 700;
         }
 
         /* 阶段卡片 */
@@ -602,41 +643,44 @@ async def index():
             gap: 20px;
         }
         .stage-card {
-            background: rgba(22, 33, 62, 0.9);
-            border-radius: 12px;
-            padding: 20px;
-            border: 2px solid transparent;
-            transition: all 0.3s;
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 22px;
+            border: 2px solid #e2e8f0;
+            transition: all 0.25s;
             cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
         .stage-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
         .stage-card.pending {
-            border-color: rgba(108, 117, 125, 0.3);
+            border-color: #cbd5e1;
+            background: #f8fafc;
         }
         .stage-card.running {
-            border-color: #ffaa00;
-            animation: pulse-border 1.5s infinite;
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+            animation: pulse-card 2s infinite;
         }
         .stage-card.success {
-            border-color: #00ff88;
-            background: rgba(0, 255, 136, 0.05);
+            border-color: #10b981;
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
         }
         .stage-card.failed {
-            border-color: #ff4444;
-            background: rgba(255, 68, 68, 0.05);
+            border-color: #ef4444;
+            background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
         }
-        @keyframes pulse-border {{
-            0%, 100% {{ box-shadow: 0 0 0 0 rgba(255,170,0,0.4); }}
-            50% {{ box-shadow: 0 0 0 8px rgba(255,170,0,0); }}
-        }}
+        @keyframes pulse-card {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1); }
+            50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.05); }
+        }
 
         .stage-header {
             display: flex;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
         .stage-icon {
             font-size: 24px;
@@ -646,67 +690,72 @@ async def index():
             font-weight: 600;
             font-size: 16px;
             flex: 1;
+            color: #1e293b;
         }
         .stage-status {
             font-size: 12px;
-            padding: 4px 10px;
-            border-radius: 12px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 600;
         }
-        .status-pending { background: rgba(108, 117, 125, 0.2); color: #888; }
-        .status-running { background: rgba(255, 170, 0, 0.2); color: #ffaa00; }
-        .status-success { background: rgba(0, 255, 136, 0.2); color: #00ff88; }
-        .status-failed { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+        .status-pending { background: #f1f5f9; color: #64748b; }
+        .status-running { background: #fef3c7; color: #d97706; }
+        .status-success { background: #d1fae5; color: #059669; }
+        .status-failed { background: #fee2e2; color: #dc2626; }
 
         .stage-description {
-            color: #888;
+            color: #64748b;
             font-size: 13px;
-            margin-bottom: 15px;
-            line-height: 1.5;
+            margin-bottom: 16px;
+            line-height: 1.6;
         }
 
         .stage-details {
-            border-top: 1px solid rgba(255,255,255,0.1);
-            padding-top: 15px;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 16px;
         }
         .detail-item {
             display: flex;
             align-items: center;
             margin-bottom: 8px;
             font-size: 13px;
+            color: #64748b;
         }
         .detail-item:before {
             content: "→";
             margin-right: 10px;
-            color: #00d9ff;
+            color: #2563eb;
+            font-weight: bold;
         }
         .detail-item.done {
-            color: #00ff88;
+            color: #059669;
         }
         .detail-item.done:before {
             content: "✓";
-            color: #00ff88;
+            color: #059669;
         }
 
         .stage-outputs {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255,255,255,0.1);
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid #f1f5f9;
         }
         .output-tag {
             display: inline-block;
-            background: rgba(0, 217, 255, 0.1);
-            color: #00d9ff;
-            padding: 4px 10px;
-            border-radius: 4px;
+            background: #eff6ff;
+            color: #2563eb;
+            padding: 5px 12px;
+            border-radius: 6px;
             font-size: 12px;
+            font-weight: 500;
             margin-right: 8px;
             margin-bottom: 8px;
         }
 
         .stage-time {
-            margin-top: 12px;
+            margin-top: 14px;
             font-size: 12px;
-            color: #666;
+            color: #94a3b8;
         }
 
         /* 详情弹窗 */
@@ -717,7 +766,8 @@ async def index():
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.8);
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
             z-index: 1000;
             justify-content: center;
             align-items: center;
@@ -726,54 +776,60 @@ async def index():
             display: flex;
         }
         .modal-content {
-            background: #16213e;
-            border-radius: 16px;
-            padding: 30px;
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 35px;
             max-width: 600px;
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
         }
         .modal-title {
-            color: #00d9ff;
+            color: #1e293b;
             font-size: 1.5em;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            font-weight: 700;
         }
         .modal-close {
             float: right;
             cursor: pointer;
-            font-size: 24px;
-            color: #888;
+            font-size: 28px;
+            color: #94a3b8;
+            transition: color 0.2s;
         }
         .modal-close:hover {
-            color: #fff;
+            color: #475569;
         }
         .detail-row {
             display: flex;
-            margin-bottom: 15px;
+            margin-bottom: 18px;
         }
         .detail-label {
             width: 120px;
-            color: #888;
+            color: #64748b;
+            font-weight: 500;
         }
         .detail-value {
             flex: 1;
-            color: #eee;
+            color: #1e293b;
         }
         .prompt-box {
-            background: rgba(0,0,0,0.3);
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-            font-family: monospace;
+            background: #f8fafc;
+            padding: 18px;
+            border-radius: 10px;
+            margin: 18px 0;
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
             font-size: 13px;
-            line-height: 1.6;
+            line-height: 1.7;
             max-height: 200px;
             overflow-y: auto;
+            color: #334155;
+            border: 1px solid #e2e8f0;
         }
         .prompt-label {
-            color: #00d9ff;
-            margin-bottom: 8px;
+            color: #2563eb;
+            margin-bottom: 10px;
             font-weight: 600;
         }
 
@@ -792,6 +848,12 @@ async def index():
             }
             select, .btn {
                 width: 100%;
+            }
+            .header {
+                padding: 20px 0;
+            }
+            .header h1 {
+                font-size: 1.8em;
             }
         }
     </style>
@@ -1188,10 +1250,10 @@ low quality, blurry, ugly, deformed, disfigured, bad anatomy, extra limbs, missi
                 html += `
                     <div style="margin-top: 20px;">
                         <div class="prompt-label">📜 三幕式结构:</div>
-                        <div style="margin-top: 10px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                            <div style="margin-bottom: 10px;"><strong style="color: #4facfe;">第一幕 (25%):</strong> 建立世界观、介绍角色、激励事件</div>
-                            <div style="margin-bottom: 10px;"><strong style="color: #fa709a;">第二幕 (50%):</strong> 发展冲突、角色成长、中点转折、危机加深</div>
-                            <div><strong style="color: #fee140;">第三幕 (25%):</strong> 高潮对决、情感释放、故事收尾</div>
+                        <div style="margin-top: 10px; padding: 18px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                            <div style="margin-bottom: 12px; padding: 10px; background: #eff6ff; border-radius: 8px;"><strong style="color: #2563eb;">第一幕 (25%):</strong> 建立世界观、介绍角色、激励事件</div>
+                            <div style="margin-bottom: 12px; padding: 10px; background: #fef3c7; border-radius: 8px;"><strong style="color: #d97706;">第二幕 (50%):</strong> 发展冲突、角色成长、中点转折、危机加深</div>
+                            <div style="padding: 10px; background: #d1fae5; border-radius: 8px;"><strong style="color: #059669;">第三幕 (25%):</strong> 高潮对决、情感释放、故事收尾</div>
                         </div>
                     </div>
                 `;
@@ -1355,5 +1417,5 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
 
