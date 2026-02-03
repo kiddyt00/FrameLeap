@@ -422,3 +422,18 @@ class GenerationResult:
     # 元数据
     generation_time: float = 0.0  # 生成耗时（秒）
     metadata: dict = field(default_factory=dict)
+
+
+# =============================================================================
+# 导出所有模型
+# =============================================================================
+
+from frameleap.models.version import (
+    StageType,
+    NodeType,
+    ArtifactStatus,
+    VersionNode,
+    ArtifactMetadata,
+    Project,
+    BranchOperation,
+)

@@ -14,6 +14,10 @@ from functools import wraps
 from contextlib import contextmanager
 
 
+# 导出制品存储
+from frameleap.utils.artifact_store import ArtifactStore
+
+
 # =============================================================================
 # 日志配置
 # =============================================================================
