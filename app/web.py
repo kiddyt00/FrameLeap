@@ -5,10 +5,12 @@ FrameLeap Web界面
 """
 
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 from dataclasses import dataclass, field
 from enum import Enum
 import uuid
+import asyncio
+import json
 
 
 class StageStatus(str, Enum):
@@ -204,10 +206,210 @@ def list_sessions() -> List[GenerationSession]:
 
 
 # =============================================================================
+# WebSocket 连接管理
+# =============================================================================
+
+class ConnectionManager:
+    """WebSocket 连接管理器"""
+
+    def __init__(self):
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, session_id: str):
+        await websocket.accept()
+        if session_id not in self.active_connections:
+            self.active_connections[session_id] = []
+        self.active_connections[session_id].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, session_id: str):
+        if session_id in self.active_connections:
+            self.active_connections[session_id].remove(websocket)
+            if not self.active_connections[session_id]:
+                del self.active_connections[session_id]
+
+    async def broadcast_to_session(self, session_id: str, message: dict):
+        if session_id in self.active_connections:
+            disconnected = []
+            for connection in self.active_connections[session_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    disconnected.append(connection)
+
+            # 清理断开的连接
+            for conn in disconnected:
+                self.disconnect(conn, session_id)
+
+
+manager = ConnectionManager()
+
+
+# =============================================================================
+# 后台生成任务
+# =============================================================================
+
+async def run_generation_task(session_id: str):
+    """
+    后台运行生成任务
+
+    执行完整的10阶段流程，并通过 WebSocket 推送进度更新
+    """
+    session = get_session(session_id)
+    if not session:
+        return
+
+    # 阶段执行顺序映射
+    stage_order = ["input", "script", "scene_desc", "image", "storyboard",
+                   "animation", "audio", "text", "compose", "output"]
+
+    # 阶段名称映射
+    stage_names = {
+        "input": "输入处理",
+        "script": "剧本生成",
+        "scene_desc": "画面描述",
+        "image": "图像生成",
+        "storyboard": "分镜编排",
+        "animation": "动画化",
+        "audio": "音频生成",
+        "text": "文字字幕",
+        "compose": "合成渲染",
+        "output": "输出交付"
+    }
+
+    try:
+        # 导入 Generator
+        from app.generator import Generator
+        from app.config import config
+
+        # 创建进度回调
+        async def progress_callback(stage_name: str, progress: float):
+            """进度回调 - 更新当前阶段状态"""
+            # 找到对应的 stage_id
+            stage_id = None
+            for sid, sname in stage_names.items():
+                if sname == stage_name:
+                    stage_id = sid
+                    break
+
+            if stage_id:
+                node = session.get_node(stage_id)
+                if node:
+                    node.status = StageStatus.RUNNING
+                    node.progress = progress
+                    if node.start_time is None:
+                        node.start_time = datetime.now()
+
+                    # 推送更新
+                    await manager.broadcast_to_session(session_id, {
+                        "type": "stage_update",
+                        "stage_id": stage_id,
+                        "status": "running",
+                        "progress": progress
+                    })
+
+        # 创建错误回调
+        async def error_callback(error: Exception):
+            """错误回调"""
+            await manager.broadcast_to_session(session_id, {
+                "type": "error",
+                "error": str(error)
+            })
+
+        # 创建生成器
+        generator = Generator(cfg=config)
+
+        # 包装回调为异步
+        def sync_progress_callback(stage_name: str, progress: float):
+            asyncio.create_task(progress_callback(stage_name, progress))
+
+        def sync_error_callback(error: Exception):
+            asyncio.create_task(error_callback(error))
+
+        generator._progress_callback = sync_progress_callback
+        generator._error_callback = sync_error_callback
+
+        # 执行生成
+        result = generator.generate(
+            text=session.input_text,
+            style=session.style,
+            resolution=session.resolution
+        )
+
+        # 更新所有阶段状态
+        for i, stage_id in enumerate(stage_order):
+            node = session.get_node(stage_id)
+            if node:
+                if result.success:
+                    node.status = StageStatus.SUCCESS
+                    node.end_time = datetime.now()
+                    if node.start_time is None:
+                        node.start_time = node.end_time
+
+                    # 收集输出数据
+                    if result.script and stage_id == "script":
+                        node.output = {
+                            "story_type": result.script.story_type.value if hasattr(result.script.story_type, 'value') else str(result.script.story_type),
+                            "theme": result.script.theme,
+                            "scene_count": len(result.script.scenes),
+                            "characters": list(result.script.characters.keys()) if result.script.characters else []
+                        }
+                    elif result.images and stage_id == "image":
+                        node.output = {"image_paths": result.images}
+
+                    # 推送更新
+                    await manager.broadcast_to_session(session_id, {
+                        "type": "stage_update",
+                        "stage_id": stage_id,
+                        "status": "success",
+                        "output": node.output,
+                        "duration": node.duration
+                    })
+                else:
+                    node.status = StageStatus.FAILED
+                    node.error_message = result.error_message
+                    node.end_time = datetime.now()
+
+                    await manager.broadcast_to_session(session_id, {
+                        "type": "stage_update",
+                        "stage_id": stage_id,
+                        "status": "failed",
+                        "error": result.error_message,
+                        "duration": node.duration
+                    })
+
+        # 发送完成消息
+        if result.success:
+            await manager.broadcast_to_session(session_id, {
+                "type": "complete",
+                "output_path": result.video_path,
+                "generation_time": result.generation_time
+            })
+        else:
+            await manager.broadcast_to_session(session_id, {
+                "type": "error",
+                "error": result.error_message
+            })
+
+    except Exception as e:
+        # 标记当前运行中的阶段为失败
+        for stage_id in stage_order:
+            node = session.get_node(stage_id)
+            if node and node.status == StageStatus.RUNNING:
+                node.status = StageStatus.FAILED
+                node.error_message = str(e)
+                node.end_time = datetime.now()
+
+        await manager.broadcast_to_session(session_id, {
+            "type": "error",
+            "error": f"生成失败: {str(e)}"
+        })
+
+
+# =============================================================================
 # FastAPI应用
 # =============================================================================
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -757,9 +959,6 @@ async def index():
                 // 连接WebSocket
                 connectWebSocket();
 
-                // 模拟进度更新（实际应该由后端推送）
-                simulateProgress();
-
             } catch (e) {
                 alert('请求失败: ' + e.message);
                 btn.disabled = false;
@@ -807,12 +1006,49 @@ async def index():
 
         // 处理WebSocket消息
         function handleWebSocketMessage(data) {
-            if (data.type === 'stage_update') {
+            console.log('收到消息:', data);
+
+            if (data.type === 'session_init') {
+                // 初始化会话状态
+                for (const [stageId, nodeData] of Object.entries(data.nodes || {})) {
+                    updateStage(stageId, nodeData.status, nodeData.output, nodeData.duration);
+                }
+                updateProgress(data.progress, '准备就绪');
+
+            } else if (data.type === 'stage_update') {
                 updateStage(data.stage_id, data.status, data.output, data.duration);
+
+                // 计算整体进度
+                const stageOrder = ['input', 'script', 'scene_desc', 'image', 'storyboard',
+                                  'animation', 'audio', 'text', 'compose', 'output'];
+                let completed = 0;
+                stageOrder.forEach(id => {
+                    const card = document.getElementById(`stage-${id}`);
+                    if (card && card.classList.contains('success')) {
+                        completed++;
+                    }
+                });
+                const progress = completed / stageOrder.length;
+                const stageNames = {
+                    'input': '输入处理',
+                    'script': '剧本生成',
+                    'scene_desc': '画面描述',
+                    'image': '图像生成',
+                    'storyboard': '分镜编排',
+                    'animation': '动画化',
+                    'audio': '音频生成',
+                    'text': '文字字幕',
+                    'compose': '合成渲染',
+                    'output': '输出交付'
+                };
+                updateProgress(progress, stageNames[data.stage_id] || '处理中');
+
             } else if (data.type === 'progress') {
                 updateProgress(data.progress, data.message);
+
             } else if (data.type === 'complete') {
                 generationComplete(data.output_path);
+
             } else if (data.type === 'error') {
                 generationError(data.error);
             }
@@ -893,49 +1129,6 @@ async def index():
             btn.textContent = '🚀 开始生成';
 
             alert('生成失败: ' + error);
-        }
-
-        // 模拟进度（演示用）
-        function simulateProgress() {
-            const stageOrder = ['input', 'script', 'scene_desc', 'image', 'storyboard',
-                              'animation', 'audio', 'text', 'compose', 'output'];
-            let currentIndex = 0;
-
-            const interval = setInterval(() => {
-                if (currentIndex >= stageOrder.length) {
-                    clearInterval(interval);
-                    return;
-                }
-
-                const stageId = stageOrder[currentIndex];
-                updateStage(stageId, 'running');
-
-                setTimeout(() => {
-                    updateStage(stageId, 'success', null, Math.random() * 3 + 1);
-
-                    const progress = (currentIndex + 1) / stageOrder.length;
-                    const stageNames = {
-                        'input': '输入处理',
-                        'script': '剧本生成',
-                        'scene_desc': '画面描述',
-                        'image': '图像生成',
-                        'storyboard': '分镜编排',
-                        'animation': '动画化',
-                        'audio': '音频生成',
-                        'text': '文字字幕',
-                        'compose': '合成渲染',
-                        'output': '输出交付'
-                    };
-                    updateProgress(progress, stageNames[stageId]);
-
-                    currentIndex++;
-
-                    if (currentIndex >= stageOrder.length) {
-                        generationComplete('demo_output.mp4');
-                    }
-                }, 2000);
-
-            }, 3000);
         }
 
         // 显示阶段详情
@@ -1030,14 +1223,12 @@ low quality, blurry, ugly, deformed, disfigured, bad anatomy, extra limbs, missi
 
 
 @app.post("/api/generate")
-async def start_generation(request: GenerateRequest):
+async def start_generation(request: GenerateRequest, background_tasks: BackgroundTasks):
     """开始生成"""
-    import json
-
     session = create_session(request.text, request.style, request.resolution)
 
-    # TODO: 启动后台生成任务
-    # 这里应该异步运行生成流程
+    # 启动后台生成任务
+    background_tasks.add_task(run_generation_task, session.id)
 
     return {
         "session_id": session.id,
@@ -1120,7 +1311,11 @@ async def get_session_api(session_id: str):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket端点，推送更新"""
+    # 等待客户端发送订阅消息
     await websocket.accept()
+
+    session_id = None
+
     try:
         while True:
             # 接收客户端消息
@@ -1129,7 +1324,11 @@ async def websocket_endpoint(websocket: WebSocket):
             if data.get("type") == "subscribe":
                 session_id = data.get("session_id")
                 session = get_session(session_id)
+
                 if session:
+                    # 注册连接
+                    await manager.connect(websocket, session_id)
+
                     # 发送当前会话状态
                     await websocket.send_json({
                         "type": "session_init",
@@ -1140,14 +1339,18 @@ async def websocket_endpoint(websocket: WebSocket):
                             stage_id: {
                                 "status": node.status.value,
                                 "output": node.output,
-                                "duration": node.duration
+                                "duration": node.duration,
+                                "error": node.error_message
                             }
                             for stage_id, node in session.nodes.items()
                         }
                     })
 
     except WebSocketDisconnect:
-        pass
+        if session_id:
+            manager.disconnect(websocket, session_id)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
 
 
 if __name__ == "__main__":
