@@ -12,6 +12,11 @@ import uuid
 import asyncio
 import json
 
+from fastapi import WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel
+
 
 class StageStatus(str, Enum):
     """阶段状态"""
@@ -408,10 +413,6 @@ async def run_generation_task(session_id: str):
 # =============================================================================
 # FastAPI应用
 # =============================================================================
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
 
 app = FastAPI(title="FrameLeap")
 
