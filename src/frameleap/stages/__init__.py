@@ -243,28 +243,59 @@ class SceneDescriptionStage(BaseStage):
 class ImageGenerationStage(BaseStage):
     """图像生成阶段"""
 
+    def __init__(self, cfg: Config):
+        super().__init__(cfg)
+        self.api = self._create_api()
+
     def generate(self, descriptions: list[SceneDescriptionData]) -> list[str]:
         """生成图像"""
         image_paths = []
 
         for i, desc in enumerate(descriptions):
-            # 这里应该调用实际的图像生成API
-            # 暂时创建占位文件
             path = self.temp_dir / f"scene_{desc.scene_id}.png"
-            path.touch()
 
-            # TODO: 调用图像生成API
-            # self._generate_image(desc.prompt, desc.negative_prompt, path)
+            # 如果API可用，调用生成
+            if self.api and self.cfg.api.image_api_key:
+                self._generate_image(desc.prompt, desc.negative_prompt, path)
+            else:
+                # 创建占位文件
+                path.touch()
 
             image_paths.append(str(path))
 
         return image_paths
 
+    def _create_api(self):
+        """创建API实例"""
+        from frameleap.utils.image_api import create_image_api
+
+        provider = self.cfg.api.image_provider
+        api_key = self.cfg.api.image_api_key
+
+        if not api_key and provider not in ["local"]:
+            return None
+
+        try:
+            kwargs = {"api_key": api_key}
+            if provider == "local":
+                kwargs = {"base_url": self.cfg.api.image_base_url or "http://127.0.0.1:7860"}
+            return create_image_api(provider, **kwargs)
+        except Exception:
+            return None
+
     def _generate_image(self, prompt: str, negative: str, output_path: Path):
-        """生成单张图像（待实现）"""
-        # TODO: 集成实际的图像生成API
-        # options: SDXL, Flux, Midjourney等
-        pass
+        """生成单张图像"""
+        try:
+            image_data = self.api.generate(
+                prompt=prompt,
+                negative=negative,
+                width=self.cfg.video.width,
+                height=self.cfg.video.height,
+            )
+            output_path.write_bytes(image_data)
+        except Exception as e:
+            print(f"图像生成失败: {e}")
+            output_path.touch()
 
 
 # =============================================================================
