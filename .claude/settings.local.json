@@ -8,7 +8,8 @@
       "Bash(tree:*)",
       "Bash(git push)",
       "Bash(ls:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(find:*)"
     ]
   }
 }
