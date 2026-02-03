@@ -1,0 +1,7 @@
+{
+    "api": {
+      "llm_provider": "qwen",
+      "llm_api_key": "sk-cc9f337591004e5fa469ed109bff12a5",
+      "llm_model": "qwen3-max"
+    }
+}

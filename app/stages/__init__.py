@@ -23,10 +23,12 @@ class BaseStage(ABC):
     """基础阶段"""
 
     def __init__(self, cfg: Config):
+        print(f"[DEBUG] BaseStage.__init__ for {self.__class__.__name__}")
         self.cfg = cfg
         self.temp_dir = cfg.paths.temp_dir
+        print(f"[DEBUG] BaseStage.__init__ done for {self.__class__.__name__}")
 
-    @abstractmethod
+    # 暂时移除 @abstractmethod 来测试
     def process(self, *args, **kwargs) -> Any:
         pass
 
@@ -40,6 +42,11 @@ class InputData:
     text: str
     style: str | None = None
     metadata: dict = {}
+
+    def __init__(self):
+        self.text = ""
+        self.style = None
+        self.metadata = {}
 
 
 class InputStage(BaseStage):
@@ -65,10 +72,164 @@ class InputStage(BaseStage):
 # 阶段2：剧本生成阶段
 # =============================================================================
 
+print("[DEBUG] About to define ScriptGenerationStage class")
+
 class ScriptGenerationStage(BaseStage):
-    """剧本生成阶段"""
+    """剧本生成阶段 - 调用千问LLM"""
+
+    def __init__(self, cfg: Config):
+        super().__init__(cfg)
+        self.llm_api = self._create_llm_api()
+
+    def _create_llm_api(self):
+        """创建LLM API实例"""
+        provider = self.cfg.api.llm_provider  # 从配置读取，默认"qwen"
+        api_key = self.cfg.api.llm_api_key
+
+        if not api_key:
+            print("[WARN] 未设置LLM API密钥，剧本生成将使用简化逻辑")
+            return None
+
+        try:
+            from app.utils.domestic_apis import create_llm_api
+            return create_llm_api(provider, api_key)
+        except Exception as e:
+            print(f"[ERROR] 创建LLM API失败: {e}")
+            return None
 
     def generate(self, input_data: InputData) -> ScriptData:
+        """生成剧本"""
+        import uuid
+
+        # 如果LLM API可用，调用LLM生成
+        if self.llm_api:
+            print(f"[DEBUG] 使用LLM生成剧本...")
+            return self._generate_with_llm(input_data)
+        else:
+            print(f"[DEBUG] 使用简化逻辑生成剧本...")
+            return self._generate_fallback(input_data)
+
+    def _generate_with_llm(self, input_data: InputData) -> ScriptData:
+        """使用千问LLM生成剧本"""
+        import uuid
+        import json
+
+        # 构建提示词
+        prompt = self._build_prompt(input_data)
+
+        try:
+            # 调用千问API
+            response = self.llm_api.generate(
+                prompt=prompt,
+                temperature=0.7,
+                max_tokens=4000
+            )
+            print(f"[DEBUG] LLM响应长度: {len(response)} 字符")
+
+            # 尝试解析LLM返回的JSON
+            try:
+                script_data = json.loads(response)
+            except json.JSONDecodeError:
+                print("[WARN] LLM返回的不是有效JSON，尝试提取JSON片段")
+                # 尝试提取JSON片段
+                import re
+                json_match = re.search(r'\{[\s\S]*\}', response)
+                if json_match:
+                    script_data = json.loads(json_match.group(0))
+                else:
+                    raise ValueError("无法从LLM响应中提取JSON")
+
+            # 创建ScriptData对象
+            script = ScriptData(
+                id=str(uuid.uuid4()),
+                title=script_data.get("title", "生成的剧本"),
+                story_type=self._parse_story_type(script_data.get("story_type", "adventure")),
+                theme=script_data.get("theme", "冒险"),
+                premise=input_data.text[:200],
+            )
+
+            # 解析场景
+            for scene_data in script_data.get("scenes", []):
+                scene = SceneData(
+                    id=f"scene_{uuid.uuid4().hex[:8]}",
+                    order=scene_data.get("order", 0),
+                    title=scene_data.get("title", "场景"),
+                    description=scene_data.get("description", ""),
+                    atmosphere=scene_data.get("atmosphere", "normal"),
+                    elements=[
+                        SceneElement(
+                            type="narration",
+                            content=scene_data.get("description", "")
+                        )
+                    ]
+                )
+                script.scenes.append(scene)
+
+            # 解析角色
+            for char_data in script_data.get("characters", []):
+                char = CharacterData(
+                    id=f"char_{uuid.uuid4().hex[:8]}",
+                    name=char_data.get("name", "角色"),
+                    character_type=self._parse_character_type(char_data.get("type", "supporting")),
+                    description=char_data.get("description", ""),
+                    personality=char_data.get("personality", []),
+                    appearance=CharacterAppearance(
+                        age=char_data.get("age", "young adult"),
+                        gender=char_data.get("gender", "androgynous"),
+                    )
+                )
+                script.characters[char.id] = char
+
+            print(f"[DEBUG] LLM生成成功: {len(script.scenes)} 场景, {len(script.characters)} 角色")
+            return script
+
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] LLM生成失败，回退到简化逻辑")
+            print(f"[ERROR] 错误类型: {type(e).__name__}")
+            print(f"[ERROR] 错误信息: {str(e)}")
+            traceback.print_exc()
+            return self._generate_fallback(input_data)
+
+    def _build_prompt(self, input_data: InputData) -> str:
+        """构建LLM提示词"""
+        return f"""你是一个专业的编剧。请根据用户的输入，生成一个完整的剧本。
+
+用户输入：{input_data.text}
+
+请严格按照以下JSON格式返回剧本（不要有任何其他文字）：
+{{
+    "title": "简短的剧本标题",
+    "story_type": "adventure",
+    "theme": "主题关键词",
+    "scenes": [
+        {{
+            "order": 0,
+            "title": "场景1标题",
+            "description": "场景的详细描述，100-200字",
+            "atmosphere": "场景氛围"
+        }}
+    ],
+    "characters": [
+        {{
+            "name": "角色名称",
+            "type": "protagonist",
+            "description": "角色描述",
+            "personality": ["性格特点1", "性格特点2"],
+            "age": "年龄描述",
+            "gender": "性别描述"
+        }}
+    ]
+}}
+
+要求：
+1. 生成3-6个场景
+2. 每个场景描述100-200字
+3. 识别1-3个主要角色
+4. story_type只能从这些选择：adventure, romance, mystery, comedy, action, fantasy
+5. 只返回JSON，不要有任何其他文字"""
+
+    def _generate_fallback(self, input_data: InputData) -> ScriptData:
         """生成剧本"""
         import uuid
 
@@ -191,6 +352,26 @@ class ScriptGenerationStage(BaseStage):
 
         return characters
 
+    def _parse_story_type(self, type_str: str) -> StoryType:
+        """解析故事类型字符串为枚举"""
+        type_map = {
+            "adventure": StoryType.ADVENTURE,
+            "romance": StoryType.ROMANCE,
+            "mystery": StoryType.MYSTERY,
+            "comedy": StoryType.COMEDY,
+            "action": StoryType.ACTION,
+            "fantasy": StoryType.FANTASY,
+        }
+        return type_map.get(type_str.lower(), StoryType.ADVENTURE)
+
+    def _parse_character_type(self, type_str: str) -> CharacterType:
+        """解析角色类型字符串为枚举"""
+        type_map = {
+            "protagonist": CharacterType.PROTAGONIST,
+            "supporting": CharacterType.SUPPORTING,
+        }
+        return type_map.get(type_str.lower(), CharacterType.SUPPORTING)
+
 
 # =============================================================================
 # 阶段3：画面描述生成阶段
@@ -202,6 +383,12 @@ class SceneDescriptionData:
     description: str
     prompt: str
     negative_prompt: str = ""
+
+    def __init__(self):
+        self.scene_id = ""
+        self.description = ""
+        self.prompt = ""
+        self.negative_prompt = ""
 
 
 class SceneDescriptionStage(BaseStage):
@@ -251,50 +438,72 @@ class ImageGenerationStage(BaseStage):
         """生成图像"""
         image_paths = []
 
+        print(f"[DEBUG] ImageGenerationStage.generate: 开始生成 {len(descriptions)} 张图像")
+        print(f"[DEBUG] API可用: {self.api is not None}")
+        print(f"[DEBUG] API密钥: {bool(self.cfg.api.image_api_key)}")
+
         for i, desc in enumerate(descriptions):
             path = self.temp_dir / f"scene_{desc.scene_id}.png"
+            print(f"[DEBUG] 生成场景 {i+1}/{len(descriptions)}: {desc.scene_id}")
 
             # 如果API可用，调用生成
             if self.api and self.cfg.api.image_api_key:
+                print(f"[DEBUG] 调用API生成图像: {path}")
                 self._generate_image(desc.prompt, desc.negative_prompt, path)
+                print(f"[DEBUG] 图像生成完成: {path.exists()}")
             else:
+                print(f"[WARN] API不可用，创建占位文件: {path}")
                 # 创建占位文件
                 path.touch()
 
             image_paths.append(str(path))
 
+        print(f"[DEBUG] 图像生成完成，共 {len(image_paths)} 张")
         return image_paths
 
     def _create_api(self):
         """创建API实例"""
-        from app.utils.image_api import create_image_api
+        from app.utils.domestic_apis import create_image_api
 
         provider = self.cfg.api.image_provider
         api_key = self.cfg.api.image_api_key
 
         if not api_key and provider not in ["local"]:
+            print(f"[WARN] 图像API密钥未配置，provider={provider}")
             return None
 
         try:
+            print(f"[DEBUG] 创建图像API: provider={provider}")
             kwargs = {"api_key": api_key}
             if provider == "local":
                 kwargs = {"base_url": self.cfg.api.image_base_url or "http://127.0.0.1:7860"}
-            return create_image_api(provider, **kwargs)
-        except Exception:
+            api = create_image_api(provider, **kwargs)
+            print(f"[DEBUG] 图像API创建成功")
+            return api
+        except Exception as e:
+            print(f"[ERROR] 创建图像API失败: {e}")
             return None
 
     def _generate_image(self, prompt: str, negative: str, output_path: Path):
         """生成单张图像"""
         try:
+            print(f"[DEBUG] 调用API.generate, prompt长度: {len(prompt)}")
+            print(f"[DEBUG] 尺寸: {self.cfg.video.width}x{self.cfg.video.height}")
+
             image_data = self.api.generate(
                 prompt=prompt,
                 negative=negative,
                 width=self.cfg.video.width,
                 height=self.cfg.video.height,
             )
+
+            print(f"[DEBUG] API返回数据长度: {len(image_data)} 字节")
             output_path.write_bytes(image_data)
+            print(f"[DEBUG] 图像已保存: {output_path}")
         except Exception as e:
-            print(f"图像生成失败: {e}")
+            import traceback
+            print(f"[ERROR] 图像生成失败: {e}")
+            traceback.print_exc()
             output_path.touch()
 
 
@@ -305,6 +514,9 @@ class ImageGenerationStage(BaseStage):
 class StoryboardData:
     """分镜数据"""
     timeline: TimelineData
+
+    def __init__(self, timeline: TimelineData = None):
+        self.timeline = timeline or TimelineData()
 
 
 class StoryboardStage(BaseStage):
@@ -351,6 +563,9 @@ class AnimationData:
     """动画数据"""
     frames: list[str] = []
 
+    def __init__(self):
+        self.frames = []
+
 
 class AnimationStage(BaseStage):
     """动画化阶段"""
@@ -362,6 +577,10 @@ class TextLayerData:
     """文字层数据"""
     subtitles: list[dict] = []
     bubbles: list[dict] = []
+
+    def __init__(self):
+        self.subtitles = []
+        self.bubbles = []
 
 
 class AudioGenerationStage(BaseStage):
@@ -379,6 +598,9 @@ class TextSubtitleStage(BaseStage):
 class VideoData:
     """视频数据"""
     path: str | None = None
+
+    def __init__(self):
+        self.path = None
 
 
 class CompositionRenderingStage(BaseStage):

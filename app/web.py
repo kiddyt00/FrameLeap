@@ -5,6 +5,7 @@ FrameLeap Web界面
 """
 
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Dict, Any, Set
 from dataclasses import dataclass, field
 from enum import Enum
@@ -27,7 +28,7 @@ class StageStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-# 阶段定义 - 完整10阶段流程
+# 阶段定义 - 4阶段流程
 STAGE_DEFINITIONS = {
     "input": {
         "id": "input",
@@ -35,88 +36,35 @@ STAGE_DEFINITIONS = {
         "description": "处理用户输入文本，获取风格配置",
         "icon": "📥",
         "color": "#6c757d",
-        "details": ["预处理文本", "获取风格配置", "验证输入"]
+        "details": ["预处理文本", "获取风格配置", "验证输入"],
+        "outputs": ["输入文本", "风格", "分辨率"]
     },
     "script": {
         "id": "script",
         "name": "📜 剧本生成",
-        "description": "分析文本，生成剧本结构和角色",
+        "description": "调用千问LLM分析文本，生成完整剧本结构",
         "icon": "📜",
         "color": "#4facfe",
-        "details": ["分析输入文本", "推断故事类型", "提取主题", "解析场景(三幕式)", "解析角色", "计算节奏点"],
-        "outputs": ["故事类型", "场景列表", "角色数据", "节奏曲线"]
+        "details": ["构建LLM提示词", "调用千问API", "解析生成结果", "提取场景和角色"],
+        "outputs": ["剧本结构", "场景列表", "角色数据"]
     },
     "scene_desc": {
         "id": "scene_desc",
-        "name": "🎨 画面描述",
-        "description": "为每个场景生成图像生成提示词",
+        "name": "🎨 场景描述",
+        "description": "为每个场景生成详细的画面描述和AI绘画提示词",
         "icon": "🎨",
-        "color": "#00f2fe",
-        "details": ["提取场景描述", "生成正向提示词", "生成负面提示词"],
-        "outputs": ["提示词(prompt)", "负面提示词(negative_prompt)"]
+        "color": "#f59e0b",
+        "details": ["分析场景内容", "构建画面描述", "生成AI绘画提示词"],
+        "outputs": ["场景描述", "绘画提示词"]
     },
     "image": {
         "id": "image",
         "name": "🖼️ 图像生成",
-        "description": "调用API生成场景图像",
+        "description": "使用通义万相模型为每个场景生成高质量图像",
         "icon": "🖼️",
-        "color": "#43e97b",
-        "details": ["创建图像API实例", "调用API生成图像", "保存图像文件"],
-        "outputs": ["场景图像文件"]
-    },
-    "storyboard": {
-        "id": "storyboard",
-        "name": "🎬 分镜编排",
-        "description": "编排镜头顺序和时间轴",
-        "icon": "🎬",
-        "color": "#fa709a",
-        "details": ["计算时间范围", "选择景别", "创建镜头数据"],
-        "outputs": ["时间轴", "镜头列表"]
-    },
-    "animation": {
-        "id": "animation",
-        "name": "🎭 动画化",
-        "description": "添加运镜和动画效果",
-        "icon": "🎭",
-        "color": "#fee140",
-        "details": ["运镜动画", "角色动画", "环境特效", "帧插值"],
-        "outputs": ["动画帧序列"]
-    },
-    "audio": {
-        "id": "audio",
-        "name": "🔊 音频生成",
-        "description": "生成配音、音效和BGM",
-        "icon": "🔊",
-        "color": "#a8edea",
-        "details": ["TTS配音", "音效生成", "BGM匹配", "多轨混音"],
-        "outputs": ["音频文件"]
-    },
-    "text": {
-        "id": "text",
-        "name": "💬 文字字幕",
-        "description": "生成字幕和对话气泡",
-        "icon": "💬",
-        "color": "#ff6b6b",
-        "details": ["生成字幕时间轴", "生成对话气泡位置"],
-        "outputs": ["字幕数据", "气泡位置"]
-    },
-    "compose": {
-        "id": "compose",
-        "name": "🎞️ 合成渲染",
-        "description": "合成动画、音频和字幕",
-        "icon": "🎞️",
-        "color": "#f093fb",
-        "details": ["使用FFmpeg/MoviePy合成"],
-        "outputs": ["视频文件"]
-    },
-    "output": {
-        "id": "output",
-        "name": "📤 输出交付",
-        "description": "输出最终视频文件",
-        "icon": "📤",
-        "color": "#4facfe",
-        "details": ["复制到输出目录"],
-        "outputs": ["output.mp4"]
+        "color": "#10b981",
+        "details": ["连接通义万相API", "生成场景图像", "保存图像文件"],
+        "outputs": ["场景图像"]
     },
 }
 
@@ -258,86 +206,142 @@ async def run_generation_task(session_id: str):
 
     执行完整的10阶段流程，并通过 WebSocket 推送进度更新
     """
+    print(f"[DEBUG] run_generation_task started for session {session_id}")
     session = get_session(session_id)
     if not session:
+        print(f"[DEBUG] Session not found: {session_id}")
         return
+    print(f"[DEBUG] Session found, proceeding...")
 
-    # 阶段执行顺序映射
-    stage_order = ["input", "script", "scene_desc", "image", "storyboard",
-                   "animation", "audio", "text", "compose", "output"]
+    # 阶段执行顺序映射（4个阶段）
+    stage_order = ["input", "script", "scene_desc", "image"]
 
     # 阶段名称映射
     stage_names = {
         "input": "输入处理",
         "script": "剧本生成",
-        "scene_desc": "画面描述",
+        "scene_desc": "场景描述",
         "image": "图像生成",
-        "storyboard": "分镜编排",
-        "animation": "动画化",
-        "audio": "音频生成",
-        "text": "文字字幕",
-        "compose": "合成渲染",
-        "output": "输出交付"
     }
 
+    # 创建进度队列（线程安全）
+    progress_queue: asyncio.Queue[tuple[str, float]] = asyncio.Queue()
+    error_queue: asyncio.Queue[Exception] = asyncio.Queue()
+
+    async def progress_dispatcher():
+        """后台任务：从队列处理进度更新并发送WebSocket"""
+        try:
+            while True:
+                stage_name, progress = await progress_queue.get()
+                print(f"[DEBUG] Dispatcher received: {stage_name} - {progress}")
+
+                # 找到对应的 stage_id
+                stage_id = None
+                for sid, sname in stage_names.items():
+                    if sname == stage_name:
+                        stage_id = sid
+                        break
+
+                if stage_id:
+                    node = session.get_node(stage_id)
+                    if node:
+                        node.status = StageStatus.RUNNING
+                        node.progress = progress
+                        if node.start_time is None:
+                            node.start_time = datetime.now()
+
+                        # 推送更新
+                        await manager.broadcast_to_session(session_id, {
+                            "type": "stage_update",
+                            "stage_id": stage_id,
+                            "status": "running",
+                            "progress": progress
+                        })
+                        print(f"[DEBUG] Broadcasted: {stage_id}")
+                progress_queue.task_done()
+        except asyncio.CancelledError:
+            # 任务被取消，正常退出
+            pass
+
+    async def error_dispatcher():
+        """后台任务：从队列处理错误并发送WebSocket"""
+        try:
+            while True:
+                error = await error_queue.get()
+                await manager.broadcast_to_session(session_id, {
+                    "type": "error",
+                    "error": str(error)
+                })
+        except asyncio.CancelledError:
+            pass
+
     try:
+        print(f"[DEBUG] Starting try block")
+        # 启动分发器任务
+        print(f"[DEBUG] Creating dispatcher tasks...")
+        progress_task = asyncio.create_task(progress_dispatcher())
+        error_task = asyncio.create_task(error_dispatcher())
+        print(f"[DEBUG] Dispatcher tasks created")
+
         # 导入 Generator
+        print(f"[DEBUG] Importing Generator...")
         from app.generator import Generator
         from app.config import config
+        print(f"[DEBUG] Generator imported")
 
-        # 创建进度回调
-        async def progress_callback(stage_name: str, progress: float):
-            """进度回调 - 更新当前阶段状态"""
-            # 找到对应的 stage_id
-            stage_id = None
-            for sid, sname in stage_names.items():
-                if sname == stage_name:
-                    stage_id = sid
-                    break
-
-            if stage_id:
-                node = session.get_node(stage_id)
-                if node:
-                    node.status = StageStatus.RUNNING
-                    node.progress = progress
-                    if node.start_time is None:
-                        node.start_time = datetime.now()
-
-                    # 推送更新
-                    await manager.broadcast_to_session(session_id, {
-                        "type": "stage_update",
-                        "stage_id": stage_id,
-                        "status": "running",
-                        "progress": progress
-                    })
-
-        # 创建错误回调
-        async def error_callback(error: Exception):
-            """错误回调"""
-            await manager.broadcast_to_session(session_id, {
-                "type": "error",
-                "error": str(error)
-            })
-
-        # 创建生成器
-        generator = Generator(cfg=config)
-
-        # 包装回调为异步
+        # 创建同步回调（线程安全地向队列提交数据）
         def sync_progress_callback(stage_name: str, progress: float):
-            asyncio.create_task(progress_callback(stage_name, progress))
+            """从工作线程调用，将进度放入队列"""
+            print(f"[DEBUG] Progress callback: {stage_name} - {progress}")
+            try:
+                # Queue.put_nowait 是线程安全的
+                progress_queue.put_nowait((stage_name, progress))
+                print(f"[DEBUG] Queued progress: {stage_name}")
+            except Exception as e:
+                print(f"Failed to queue progress: {e}")
 
         def sync_error_callback(error: Exception):
-            asyncio.create_task(error_callback(error))
+            """从工作线程调用，将错误放入队列"""
+            try:
+                error_queue.put_nowait(error)
+            except Exception as e:
+                print(f"Failed to queue error: {e}")
 
+        # 创建生成器并设置回调
+        print(f"[DEBUG] Creating Generator instance...")
+        import time
+        start = time.time()
+        generator = Generator(cfg=config)
+        elapsed = time.time() - start
+        print(f"[DEBUG] Generator created in {elapsed:.2f}s")
         generator._progress_callback = sync_progress_callback
         generator._error_callback = sync_error_callback
+        print(f"[DEBUG] Callbacks set")
 
-        # 执行生成
-        result = generator.generate(
+        print(f"[DEBUG] Starting generation for session {session_id}")
+
+        # 执行生成（在线程池中运行，避免阻塞事件循环）
+        result = await asyncio.to_thread(
+            generator.generate,
             text=session.input_text,
             style=session.style,
             resolution=session.resolution
         )
+
+        print(f"[DEBUG] Generation completed: success={result.success}")
+        if not result.success:
+            print(f"[DEBUG] Error message: {result.error_message}")
+        else:
+            print(f"[DEBUG] Output path: {result.video_path}")
+
+        # 等待队列处理完毕（确保所有消息都已发送）
+        await progress_queue.join()
+        await error_queue.join()
+
+        # 取消分发器任务
+        progress_task.cancel()
+        error_task.cancel()
+        await asyncio.gather(progress_task, error_task, return_exceptions=True)
 
         # 更新所有阶段状态
         for i, stage_id in enumerate(stage_order):
@@ -350,12 +354,51 @@ async def run_generation_task(session_id: str):
                         node.start_time = node.end_time
 
                     # 收集输出数据
-                    if result.script and stage_id == "script":
+                    if stage_id == "input":
                         node.output = {
+                            "input_text": session.input_text,
+                            "style": session.style,
+                            "resolution": session.resolution
+                        }
+                    elif result.script and stage_id == "script":
+                        # 序列化场景数据
+                        scenes_data = []
+                        for scene in result.script.scenes:
+                            scenes_data.append({
+                                "order": scene.order,
+                                "title": scene.title,
+                                "description": scene.description,
+                                "atmosphere": scene.atmosphere
+                            })
+
+                        # 序列化角色数据
+                        characters_data = []
+                        for char_id, char in result.script.characters.items():
+                            characters_data.append({
+                                "id": char_id,
+                                "name": char.name,
+                                "type": char.character_type.value if hasattr(char.character_type, 'value') else str(char.character_type),
+                                "description": char.description,
+                                "personality": char.personality if hasattr(char, 'personality') else [],
+                                "age": char.appearance.age if hasattr(char, 'appearance') and char.appearance else "unknown",
+                                "gender": char.appearance.gender if hasattr(char, 'appearance') and char.appearance else "unknown"
+                            })
+
+                        node.output = {
+                            "title": result.script.title,
                             "story_type": result.script.story_type.value if hasattr(result.script.story_type, 'value') else str(result.script.story_type),
                             "theme": result.script.theme,
+                            "premise": result.script.premise,
                             "scene_count": len(result.script.scenes),
-                            "characters": list(result.script.characters.keys()) if result.script.characters else []
+                            "scenes": scenes_data,
+                            "character_count": len(result.script.characters),
+                            "characters": characters_data
+                        }
+                    elif stage_id == "scene_desc" and result.script:
+                        # 场景描述阶段的输出已经在script阶段生成，这里只是确认完成
+                        node.output = {
+                            "description_count": len(result.script.scenes),
+                            "scenes_prepared": len(result.script.scenes)
                         }
                     elif result.images and stage_id == "image":
                         node.output = {"image_paths": result.images}
@@ -415,6 +458,18 @@ async def run_generation_task(session_id: str):
 
 app = FastAPI(title="FrameLeap")
 
+# 挂载静态文件目录
+from fastapi.staticfiles import StaticFiles
+from app.config import config
+import os
+
+# 确保temp目录存在
+temp_dir = Path(config.paths.temp_dir)
+temp_dir.mkdir(parents=True, exist_ok=True)
+
+# 挂载temp目录为静态文件
+app.mount("/temp", StaticFiles(directory=str(temp_dir)), name="temp")
+
 
 class GenerateRequest(BaseModel):
     """生成请求"""
@@ -433,6 +488,10 @@ class RegenerateRequest(BaseModel):
 async def index():
     """主页"""
     import json
+
+    # 检查LLM配置状态
+    from app.config import config
+    llm_configured = bool(config.api.llm_api_key)
 
     # 将阶段定义转换为JSON字符串注入到页面
     stages_json = json.dumps(STAGE_DEFINITIONS, ensure_ascii=False)
@@ -478,6 +537,58 @@ async def index():
         .header p {
             color: rgba(255, 255, 255, 0.9);
             font-size: 1.1em;
+        }
+
+        /* 配置警告 */
+        .config-warning {
+            background: #fff7ed;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            animation: slideDown 0.3s ease;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+        }
+        .config-warning.hidden {
+            display: none;
+        }
+        .warning-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        .warning-icon {
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+        .warning-text {
+            color: #92400e;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .warning-text a {
+            color: #2563eb;
+            text-decoration: underline;
+            margin: 0 4px;
+        }
+        .warning-text strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* 输入区域 */
@@ -862,7 +973,21 @@ async def index():
     <div class="container">
         <div class="header">
             <h1>🎬 FrameLeap</h1>
-            <p>AI驱动的动态漫自动生成系统</p>
+            <p>AI驱动的剧本生成系统（使用千问LLM）</p>
+        </div>
+
+        <!-- LLM配置警告 -->
+        <div class="config-warning" id="configWarning" style="display: none;">
+            <div class="warning-content">
+                <span class="warning-icon">⚠️</span>
+                <div class="warning-text">
+                    <strong>未配置千问 API Key</strong><br>
+                    剧本生成将使用简化规则。请配置 API Key 以获得更好的生成效果。<br>
+                    <a href="https://help.aliyun.com/zh/dashscope/" target="_blank">获取千问 API Key</a>
+                    |
+                    <a href="#" onclick="dismissWarning(); return false;">暂时忽略</a>
+                </div>
+            </div>
         </div>
 
         <!-- 输入区域 -->
@@ -922,11 +1047,36 @@ async def index():
         let currentSessionId = null;
         let ws = null;
         const STAGE_DEFINITIONS = __STAGE_DEFINITIONS__;
+        const stageOutputs = {};  // 存储每个阶段的输出数据
 
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
+            checkLLMConfig();
             renderInitialStages();
         });
+
+        // 检查LLM配置
+        async function checkLLMConfig() {
+            try {
+                const res = await fetch('/api/config/check');
+                const data = await res.json();
+                if (!data.llm_configured) {
+                    showWarning();
+                }
+            } catch (e) {
+                console.error('配置检查失败:', e);
+            }
+        }
+
+        // 显示警告
+        function showWarning() {
+            document.getElementById('configWarning').style.display = 'flex';
+        }
+
+        // 忽略警告
+        function dismissWarning() {
+            document.getElementById('configWarning').classList.add('hidden');
+        }
 
         // 渲染初始阶段卡片
         function renderInitialStages() {
@@ -1081,8 +1231,7 @@ async def index():
                 updateStage(data.stage_id, data.status, data.output, data.duration);
 
                 // 计算整体进度
-                const stageOrder = ['input', 'script', 'scene_desc', 'image', 'storyboard',
-                                  'animation', 'audio', 'text', 'compose', 'output'];
+                const stageOrder = ['input', 'script', 'scene_desc', 'image'];
                 let completed = 0;
                 stageOrder.forEach(id => {
                     const card = document.getElementById(`stage-${id}`);
@@ -1094,14 +1243,8 @@ async def index():
                 const stageNames = {
                     'input': '输入处理',
                     'script': '剧本生成',
-                    'scene_desc': '画面描述',
+                    'scene_desc': '场景描述',
                     'image': '图像生成',
-                    'storyboard': '分镜编排',
-                    'animation': '动画化',
-                    'audio': '音频生成',
-                    'text': '文字字幕',
-                    'compose': '合成渲染',
-                    'output': '输出交付'
                 };
                 updateProgress(progress, stageNames[data.stage_id] || '处理中');
 
@@ -1120,6 +1263,11 @@ async def index():
         function updateStage(stageId, status, output = null, duration = null) {
             const stageDef = STAGE_DEFINITIONS[stageId];
             if (!stageDef) return;
+
+            // 保存 output 数据
+            if (output) {
+                stageOutputs[stageId] = output;
+            }
 
             const container = document.getElementById('stagesContainer');
             const oldCard = document.getElementById(`stage-${stageId}`);
@@ -1245,18 +1393,128 @@ low quality, blurry, ugly, deformed, disfigured, bad anatomy, extra limbs, missi
                 `;
             }
 
-            // 特殊处理剧本生成阶段 - 显示三幕式结构
-            if (stageId === 'script') {
+            // 特殊处理图像生成阶段 - 显示生成的图像
+            if (stageId === 'image' && stageOutputs['image']) {
+                const output = stageOutputs['image'];
+                if (output.image_paths && output.image_paths.length > 0) {
+                    html += `
+                        <div style="margin-top: 20px;">
+                            <div class="prompt-label">🖼️ 生成的场景图像 (${output.image_paths.length}):</div>
+                            <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; max-height: 500px; overflow-y: auto;">
+                    `;
+                    output.image_paths.forEach((path, idx) => {
+                        // 将文件路径转换为URL
+                        const imageUrl = '/temp/' + path.split(/[\\/]/).pop();
+                        html += `
+                            <div style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: white;">
+                                <img src="${imageUrl}" alt="场景 ${idx + 1}" style="width: 100%; height: 200px; object-fit: cover; display: block;" onerror="this.parentElement.innerHTML='<div style=\\'padding:20px;text-align:center;color:#ef4444;\\'>图像加载失败</div>'">
+                                <div style="padding: 12px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                                    <div style="font-weight: bold; color: #2563eb; margin-bottom: 4px;">场景 ${idx + 1}</div>
+                                    <div style="font-size: 12px; color: #64748b;">${path}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div style="margin-top: 20px;">
+                            <div class="prompt-label">🖼️ 生成的图像:</div>
+                            <div style="margin-top: 10px; padding: 18px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                无图像生成
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            // 特殊处理输入阶段 - 显示输入参数
+            if (stageId === 'input' && stageOutputs['input']) {
+                const output = stageOutputs['input'];
                 html += `
                     <div style="margin-top: 20px;">
-                        <div class="prompt-label">📜 三幕式结构:</div>
+                        <div class="prompt-label">📝 输入参数:</div>
                         <div style="margin-top: 10px; padding: 18px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
-                            <div style="margin-bottom: 12px; padding: 10px; background: #eff6ff; border-radius: 8px;"><strong style="color: #2563eb;">第一幕 (25%):</strong> 建立世界观、介绍角色、激励事件</div>
-                            <div style="margin-bottom: 12px; padding: 10px; background: #fef3c7; border-radius: 8px;"><strong style="color: #d97706;">第二幕 (50%):</strong> 发展冲突、角色成长、中点转折、危机加深</div>
-                            <div style="padding: 10px; background: #d1fae5; border-radius: 8px;"><strong style="color: #059669;">第三幕 (25%):</strong> 高潮对决、情感释放、故事收尾</div>
+                            <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">输入文本:</strong> ${output.input_text}</div>
+                            <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">风格:</strong> ${output.style}</div>
+                            <div><strong style="color: #2563eb;">分辨率:</strong> ${output.resolution}</div>
                         </div>
                     </div>
                 `;
+            }
+
+            // 特殊处理剧本生成阶段 - 显示场景和角色详情
+            if (stageId === 'script') {
+                // 显示生成结果
+                if (stageOutputs['script']) {
+                    const output = stageOutputs['script'];
+                    html += `
+                        <div style="margin-top: 20px;">
+                            <div class="prompt-label">📊 剧本信息:</div>
+                            <div style="margin-top: 10px; padding: 18px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
+                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">标题:</strong> ${output.title || '未命名'}</div>
+                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">故事类型:</strong> ${output.story_type || '未知'}</div>
+                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">主题:</strong> ${output.theme || '未知'}</div>
+                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">前提:</strong> ${output.premise || '无'}</div>
+                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">场景数量:</strong> ${output.scene_count || 0}</div>
+                                <div><strong style="color: #2563eb;">角色数量:</strong> ${output.character_count || 0}</div>
+                            </div>
+                        </div>
+                    `;
+
+                    // 显示场景详情
+                    if (output.scenes && output.scenes.length > 0) {
+                        html += `
+                            <div style="margin-top: 20px;">
+                                <div class="prompt-label">🎬 场景列表 (${output.scenes.length}):</div>
+                                <div style="margin-top: 10px; max-height: 400px; overflow-y: auto;">
+                        `;
+                        output.scenes.forEach((scene, idx) => {
+                            html += `
+                                <div style="margin-bottom: 16px; padding: 16px; background: ${idx % 2 === 0 ? '#f8fafc' : '#ffffff'}; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                    <div style="margin-bottom: 8px; color: #2563eb; font-weight: bold;">场景 ${scene.order + 1}: ${scene.title}</div>
+                                    <div style="margin-bottom: 8px; color: #64748b; font-size: 13px;">氛围: ${scene.atmosphere || '普通'}</div>
+                                    <div style="color: #334155; line-height: 1.6;">${scene.description || '暂无描述'}</div>
+                                </div>
+                            `;
+                        });
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // 显示角色详情
+                    if (output.characters && output.characters.length > 0) {
+                        html += `
+                            <div style="margin-top: 20px;">
+                                <div class="prompt-label">👥 角色列表 (${output.characters.length}):</div>
+                                <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto;">
+                        `;
+                        output.characters.forEach((char, idx) => {
+                            html += `
+                                <div style="padding: 16px; background: ${idx % 2 === 0 ? '#fef3c7' : '#fffbeb'}; border-radius: 10px; border: 1px solid #fcd34d;">
+                                    <div style="margin-bottom: 8px; color: #92400e; font-weight: bold; font-size: 15px;">${char.name}</div>
+                                    <div style="margin-bottom: 6px; color: #b45309; font-size: 12px;">类型: ${char.type || '未知'}</div>
+                                    <div style="margin-bottom: 6px; color: #b45309; font-size: 12px;">年龄: ${char.age || '未知'} | 性别: ${char.gender || '未知'}</div>
+                                    <div style="margin-bottom: 6px; color: #78350f; font-size: 13px;">${char.description || '暂无描述'}</div>
+                                    ${char.personality && char.personality.length > 0 ? `
+                                        <div style="color: #92400e; font-size: 12px;">
+                                            <strong>性格:</strong> ${char.personality.join(', ')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        });
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
             }
 
             body.innerHTML = html;
@@ -1284,13 +1542,28 @@ low quality, blurry, ugly, deformed, disfigured, bad anatomy, extra limbs, missi
     return html_template.replace('__STAGE_DEFINITIONS__', stages_json)
 
 
-@app.post("/api/generate")
-async def start_generation(request: GenerateRequest, background_tasks: BackgroundTasks):
-    """开始生成"""
-    session = create_session(request.text, request.style, request.resolution)
+@app.get("/api/config/check")
+async def check_config():
+    """检查配置状态"""
+    from app.config import config
+    return {
+        "llm_configured": bool(config.api.llm_api_key),
+        "llm_provider": config.api.llm_provider,
+        "llm_model": config.api.llm_model
+    }
 
-    # 启动后台生成任务
-    background_tasks.add_task(run_generation_task, session.id)
+
+@app.post("/api/generate")
+async def start_generation(request: GenerateRequest):
+    """开始生成"""
+    print(f"[DEBUG] /api/generate called: text={request.text[:50]}, style={request.style}")
+    session = create_session(request.text, request.style, request.resolution)
+    print(f"[DEBUG] Session created: {session.id}")
+
+    # 直接启动异步任务（更可靠）
+    print(f"[DEBUG] Starting async task...")
+    asyncio.create_task(run_generation_task(session.id))
+    print(f"[DEBUG] Async task created")
 
     return {
         "session_id": session.id,

@@ -1,7 +1,11 @@
 """
-FrameLeap - 个人动态漫生成器
+FrameLeap - 剧本与图像生成器（4阶段版）
 
-单用户版本，简化使用
+负责：
+1. 输入处理
+2. 剧本生成（使用千问LLM）
+3. 场景描述生成
+4. 图像生成（使用通义万相）
 """
 
 from pathlib import Path
@@ -15,21 +19,8 @@ from app.stages import (
     ScriptGenerationStage,
     SceneDescriptionStage,
     ImageGenerationStage,
-    StoryboardStage,
-    AnimationStage,
-    AudioGenerationStage,
-    TextSubtitleStage,
-    CompositionRenderingStage,
-    OutputDeliveryStage,
 )
-from app.stages import (
-    InputData,
-    StoryboardData,
-    AnimationData,
-    AudioData,
-    TextLayerData,
-    VideoData,
-)
+from app.stages import InputData
 from app.utils.types import ProgressCallback, ErrorCallback
 
 # 类型别名
@@ -37,9 +28,13 @@ GeneratorCallback = Callable[[str, float], None]
 
 
 class Generator:
-    """FrameLeap生成器（个人版）
+    """FrameLeap剧本与图像生成器（4阶段版）
 
-    负责10个阶段的编排和执行，提供端到端的动态漫生成功能
+    负责4个阶段的编排和执行：
+    - 输入处理
+    - 剧本生成（调用千问LLM）
+    - 场景描述生成
+    - 图像生成（调用通义万相）
 
     Attributes:
         cfg: 生成器配置
@@ -47,12 +42,6 @@ class Generator:
         script: 剧本生成阶段
         scene_desc: 场景描述生成阶段
         image: 图像生成阶段
-        storyboard: 分镜编排阶段
-        animation: 动画化阶段
-        audio: 音频生成阶段
-        text: 文字字幕阶段
-        compose: 合成渲染阶段
-        output: 输出交付阶段
     """
 
     def __init__(
@@ -74,17 +63,17 @@ class Generator:
         self._init_stages()
 
     def _init_stages(self) -> None:
-        """初始化各阶段处理器"""
+        """初始化各阶段处理器（4个阶段）"""
+        print("[DEBUG] _init_stages: Starting...")
         self.input = InputStage(self.cfg)
+        print("[DEBUG] _init_stages: InputStage created")
         self.script = ScriptGenerationStage(self.cfg)
+        print("[DEBUG] _init_stages: ScriptGenerationStage created")
         self.scene_desc = SceneDescriptionStage(self.cfg)
+        print("[DEBUG] _init_stages: SceneDescriptionStage created")
         self.image = ImageGenerationStage(self.cfg)
-        self.storyboard = StoryboardStage(self.cfg)
-        self.animation = AnimationStage(self.cfg)
-        self.audio = AudioGenerationStage(self.cfg)
-        self.text = TextSubtitleStage(self.cfg)
-        self.compose = CompositionRenderingStage(self.cfg)
-        self.output = OutputDeliveryStage(self.cfg)
+        print("[DEBUG] _init_stages: ImageGenerationStage created")
+        print("[DEBUG] _init_stages: All 4 stages created")
 
     def _report_progress(self, stage_name: str, progress: float) -> None:
         """报告进度
@@ -113,10 +102,9 @@ class Generator:
         resolution: str | None = None,
     ) -> GenerationResult:
         """
-        生成动态漫
+        生成剧本和图像（4阶段流程）
 
-        执行完整的10阶段流程：输入 -> 剧本 -> 画面描述 -> 图像生成
-        -> 分镜编排 -> 动画化 -> 音频生成 -> 文字字幕 -> 合成渲染 -> 输出
+        执行：输入处理 -> 剧本生成（LLM） -> 场景描述生成 -> 图像生成（通义万相）
 
         Args:
             text: 输入文本，一句话或短篇故事
@@ -125,7 +113,7 @@ class Generator:
             resolution: 分辨率 (1080p, 1080p_v, 720p, 4k, cinema)
 
         Returns:
-            GenerationResult: 生成结果对象，包含成功状态、视频路径等信息
+            GenerationResult: 生成结果对象，包含剧本数据和图像路径等信息
 
         Raises:
             EmptyInputError: 当输入文本为空时
@@ -147,50 +135,26 @@ class Generator:
                 self.cfg.style.art_style = style
 
             # 阶段1: 输入处理
-            self._report_progress("输入处理", 0.1)
-            input_data = self.input.process(text)
+            self._report_progress("输入处理", 0.25)
+            input_data = self.input.process(text, style)
 
-            # 阶段2: 剧本生成
-            self._report_progress("剧本生成", 0.2)
+            # 阶段2: 剧本生成（调用千问LLM）
+            self._report_progress("剧本生成", 0.5)
             script = self.script.generate(input_data)
 
-            # 阶段3: 画面描述生成
-            self._report_progress("画面描述", 0.3)
-            scenes = self.scene_desc.generate(script)
+            # 阶段3: 场景描述生成
+            self._report_progress("场景描述生成", 0.75)
+            scene_descriptions = self.scene_desc.generate(script)
 
-            # 阶段4: 图像生成
-            self._report_progress("图像生成", 0.4)
-            images = self.image.generate(scenes)
-
-            # 阶段5: 分镜编排
-            self._report_progress("分镜编排", 0.5)
-            storyboard = self.storyboard.arrange(script, images)
-
-            # 阶段6: 动画化
-            self._report_progress("动画化", 0.6)
-            animations = self.animation.animate(storyboard)
-
-            # 阶段7: 音频生成
-            self._report_progress("音频生成", 0.7)
-            audio = self.audio.generate(script)
-
-            # 阶段8: 文字字幕
-            self._report_progress("文字字幕", 0.8)
-            text_layers = self.text.generate(script)
-
-            # 阶段9: 合成渲染
-            self._report_progress("合成渲染", 0.9)
-            video = self.compose.compose(animations, audio, text_layers)
-
-            # 阶段10: 输出交付
-            self._report_progress("输出交付", 1.0)
-            output_path = self.output.deliver(video)
+            # 阶段4: 图像生成（调用通义万相）
+            self._report_progress("图像生成", 1.0)
+            image_paths = self.image.generate(scene_descriptions)
 
             return GenerationResult(
                 success=True,
-                video_path=str(output_path),
+                video_path=None,
                 script=script,
-                images=images,
+                images=image_paths,
                 generation_time=time.perf_counter() - start,
             )
 
@@ -210,9 +174,9 @@ def generate(
     **kwargs
 ) -> GenerationResult:
     """
-    快速生成动态漫
+    快速生成剧本
 
-    便捷函数，使用默认配置快速生成动态漫
+    便捷函数，使用默认配置快速生成剧本
 
     Args:
         text: 输入文本
@@ -225,10 +189,10 @@ def generate(
 
     Examples:
         >>> generate("一个少年在雨夜中遇到了神秘少女")
-        GenerationResult(success=True, video_path="/path/to/output.mp4", ...)
+        GenerationResult(success=True, script=..., ...)
 
         >>> generate("...", style="manhwa", resolution="1080p_v")
-        GenerationResult(success=True, video_path="/path/to/output.mp4", ...)
+        GenerationResult(success=True, script=..., ...)
     """
     gen = Generator()
     return gen.generate(text, style=style, resolution=resolution, **kwargs)

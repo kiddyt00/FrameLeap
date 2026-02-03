@@ -118,7 +118,13 @@ class Qwen_API(BaseLLMAPI):
             data=data
         )
         result = self.parse_json_response(response)
-        return result["output"]["text"]
+
+        # 检查是否有错误
+        if "code" in result and result["code"] != "Success":
+            raise ValueError(f"Qwen API Error: {result.get('message', 'Unknown error')}")
+
+        # 使用 result_format: "message" 时的响应格式
+        return result["output"]["choices"][0]["message"]["content"]
 
 
 class Zhipu_API(BaseLLMAPI):
@@ -300,7 +306,10 @@ class QwenImage_API(BaseImageAPI):
         height: int = 1024,
         **kwargs: Any,
     ) -> ImageData:
-        """生成图像"""
+        """生成图像（异步模式）"""
+        import time
+
+        # 步骤1: 提交任务
         data = {
             "model": "wanx-v1",
             "input": {
@@ -313,15 +322,71 @@ class QwenImage_API(BaseImageAPI):
             }
         }
 
+        print(f"[DEBUG] 提交通义万相任务...")
         response = self.post(
             "/api/v1/services/aigc/text2image/image-synthesis",
             data=data
         )
         result = self.parse_json_response(response)
 
-        if "output" in result and "results" in result["output"]:
-            return base64.b64decode(result["output"]["results"][0]["b64_image"])
-        raise ValueError("Unknown response format")
+        print(f"[DEBUG] 任务提交响应: {result}")
+
+        # 检查是否有错误
+        if "code" in result and result["code"] != "" and result["code"] != "Success":
+            raise ValueError(f"通义万相API错误: {result.get('message', '未知错误')}")
+
+        # 获取task_id
+        if "output" not in result or "task_id" not in result["output"]:
+            print(f"[ERROR] 未知的响应格式: {result}")
+            raise ValueError(f"Unknown response format. Keys: {result.keys()}")
+
+        task_id = result["output"]["task_id"]
+        print(f"[DEBUG] 任务ID: {task_id}")
+
+        # 步骤2: 轮询任务结果
+        max_wait = 120  # 最多等待120秒
+        interval = 2    # 每2秒检查一次
+        waited = 0
+
+        while waited < max_wait:
+            time.sleep(interval)
+            waited += interval
+
+            print(f"[DEBUG] 查询任务状态 ({waited}s)...")
+
+            # 查询任务结果
+            result_response = self.get(
+                f"/api/v1/tasks/{task_id}"
+            )
+            task_result = self.parse_json_response(result_response)
+            print(f"[DEBUG] 任务状态: {task_result.get('output', {}).get('task_status', 'unknown')}")
+
+            # 检查任务状态
+            if "output" in task_result:
+                task_status = task_result["output"].get("task_status", "")
+
+                if task_status == "SUCCEEDED":
+                    # 任务成功，获取结果
+                    results = task_result["output"].get("results", [])
+                    if results and "url" in results[0]:
+                        image_url = results[0]["url"]
+                        print(f"[DEBUG] 图像URL: {image_url}")
+
+                        # 下载图像
+                        img_response = self.get(image_url.replace("https://dashscope.aliyuncs.com", ""))
+                        return img_response.content
+
+                    # 如果有b64_image字段
+                    if results and "b64_image" in results[0]:
+                        return base64.b64decode(results[0]["b64_image"])
+
+                elif task_status == "FAILED":
+                    error_msg = task_result["output"].get("message", "未知错误")
+                    raise ValueError(f"通义万相任务失败: {error_msg}")
+
+                # 任务仍在处理中，继续等待
+
+        raise ValueError(f"通义万相任务超时（等待{max_wait}秒）")
 
 
 # =============================================================================
