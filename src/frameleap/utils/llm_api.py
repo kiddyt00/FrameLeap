@@ -4,12 +4,13 @@ LLM API集成
 支持多种语言模型服务（OpenAI、Anthropic、DeepSeek、本地模型）
 """
 
-from abc import ABC, abstractmethod
 from typing import Any
-import time
+
+from frameleap.utils.http_client import BaseHTTPClient
+from frameleap.exceptions import APIResponseError
 
 
-class LLM_API(ABC):
+class LLM_API(BaseHTTPClient):
     """LLM API基类
 
     定义所有LLM提供商的通用接口
@@ -24,7 +25,7 @@ class LLM_API(ABC):
         self,
         api_key: str,
         model: str,
-        base_url: str | None = None,
+        base_url: str,
     ) -> None:
         """初始化LLM API客户端
 
@@ -33,11 +34,9 @@ class LLM_API(ABC):
             model: 模型名称
             base_url: API基础URL，用于自定义端点
         """
-        self.api_key = api_key
+        super().__init__(api_key, base_url)
         self.model = model
-        self.base_url = base_url
 
-    @abstractmethod
     def generate(
         self,
         prompt: str,
@@ -66,7 +65,7 @@ class OpenAI_API(LLM_API):
     支持GPT-4、GPT-3.5等模型
 
     Example:
-        >>> api = OpenAI_API("sk-xxx", "gpt-4")
+        >>> api = OpenAI_API("sk-xxx", "gpt-4", "https://api.openai.com/v1")
         >>> result = api.generate("写一个故事", temperature=0.7)
     """
 
@@ -81,7 +80,7 @@ class OpenAI_API(LLM_API):
             api_key: OpenAI API密钥
             model: 模型名称，默认"gpt-4"
         """
-        super().__init__(api_key, model)
+        super().__init__(api_key, model, "https://api.openai.com/v1")
 
     def generate(
         self,
@@ -142,7 +141,7 @@ class Anthropic_API(LLM_API):
             api_key: Anthropic API密钥
             model: 模型名称，默认"claude-3-opus-20240229"
         """
-        super().__init__(api_key, model)
+        super().__init__(api_key, model, "https://api.anthropic.com")
 
     def generate(
         self,
@@ -228,13 +227,6 @@ class DeepSeek_API(LLM_API):
             APIAuthenticationError: API密钥无效
             APIResponseError: API返回错误
         """
-        import httpx
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
         data = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -242,18 +234,12 @@ class DeepSeek_API(LLM_API):
             "max_tokens": max_tokens,
         }
 
-        response = httpx.post(
-            f"{self.base_url}/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=120,
-        )
-        response.raise_for_status()
-        result = response.json()
+        response = self.post("/v1/chat/completions", data=data)
+        result = self.parse_json_response(response)
         return result["choices"][0]["message"]["content"]
 
 
-class LocalLLM_API(LLM_API):
+class LocalLLM_API:
     """本地LLM API客户端
 
     支持Ollama等本地大模型服务
@@ -274,7 +260,9 @@ class LocalLLM_API(LLM_API):
             model: 模型名称，默认"llama2"
             base_url: Ollama服务地址
         """
-        super().__init__("", model, base_url)
+        self.model = model
+        self.base_url = base_url
+        self._client = BaseHTTPClient("", base_url, timeout=300)
 
     def generate(
         self,
@@ -296,28 +284,22 @@ class LocalLLM_API(LLM_API):
             APIConnectionError: 无法连接到本地服务
             APIResponseError: 响应解析失败
         """
-        import httpx
+        data = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"temperature": temperature},
+        }
 
-        response = httpx.post(
-            f"{self.base_url}/api/generate",
-            json={
-                "model": self.model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": temperature},
-            },
-            timeout=300,
-        )
-
-        response.raise_for_status()
-        result = response.json()
+        response = self._client.post("/api/generate", data=data)
+        result = self._client.parse_json_response(response)
         return result.get("response", "")
 
 
 def create_llm_api(
     provider: str,
     **kwargs: Any,
-) -> LLM_API:
+) -> LLM_API | LocalLLM_API:
     """创建LLM API实例
 
     工厂函数，根据提供商名称创建对应的API客户端
@@ -331,7 +313,7 @@ def create_llm_api(
         **kwargs: 传递给具体API类的参数
 
     Returns:
-        LLM_API实例
+        LLM API实例
 
     Raises:
         ValueError: 不支持的提供商
@@ -340,17 +322,11 @@ def create_llm_api(
         >>> api = create_llm_api("openai", api_key="sk-xxx")
         >>> api = create_llm_api("local", model="llama2")
     """
-    factories: dict[str, type[LLM_API]] = {
-        "openai": lambda: OpenAI_API(kwargs["api_key"], kwargs.get("model", "gpt-4")),
-        "anthropic": lambda: Anthropic_API(
-            kwargs["api_key"],
-            kwargs.get("model", "claude-3-opus-20240229")
-        ),
-        "deepseek": lambda: DeepSeek_API(kwargs["api_key"]),
-        "local": lambda: LocalLLM_API(
-            kwargs.get("model", "llama2"),
-            kwargs.get("base_url", "http://localhost:11434")
-        ),
+    factories: dict[str, type[LLM_API | LocalLLM_API]] = {
+        "openai": OpenAI_API,
+        "anthropic": Anthropic_API,
+        "deepseek": DeepSeek_API,
+        "local": LocalLLM_API,
     }
 
     if provider not in factories:
@@ -359,7 +335,7 @@ def create_llm_api(
             f"Supported providers: {', '.join(factories.keys())}"
         )
 
-    return factories[provider]()
+    return factories[provider](**kwargs)
 
 
 __all__ = [

@@ -11,12 +11,15 @@ from abc import ABC, abstractmethod
 from typing import Any
 import base64
 
+from frameleap.utils.http_client import BaseHTTPClient
+from frameleap.utils.types import ImageData, AudioData
+
 
 # =============================================================================
 # 国内LLM API
 # =============================================================================
 
-class BaseLLMAPI(ABC):
+class BaseLLMAPI(BaseHTTPClient):
     """国内LLM API基类"""
 
     def __init__(
@@ -32,30 +35,8 @@ class BaseLLMAPI(ABC):
             model: 模型名称
             base_url: API基础URL
         """
-        self.api_key = api_key
+        super().__init__(api_key, base_url)
         self.model = model
-        self.base_url = base_url
-
-    @abstractmethod
-    def generate(
-        self,
-        prompt: str,
-        temperature: float = 0.7,
-        max_tokens: int = 4000,
-        **kwargs: Any,
-    ) -> str:
-        """生成文本
-
-        Args:
-            prompt: 输入提示词
-            temperature: 温度参数
-            max_tokens: 最大token数
-            **kwargs: 其他参数
-
-        Returns:
-            生成的文本
-        """
-        raise NotImplementedError
 
 
 class DeepSeek_API(BaseLLMAPI):
@@ -71,15 +52,9 @@ class DeepSeek_API(BaseLLMAPI):
     def __init__(
         self,
         api_key: str,
-        base_url: str = "https://api.deepseek.com",
     ) -> None:
-        """初始化DeepSeek API客户端
-
-        Args:
-            api_key: DeepSeek API密钥
-            base_url: API基础URL
-        """
-        super().__init__(api_key, "deepseek-chat", base_url)
+        """初始化DeepSeek API客户端"""
+        super().__init__(api_key, "deepseek-chat", "https://api.deepseek.com")
 
     def generate(
         self,
@@ -89,13 +64,6 @@ class DeepSeek_API(BaseLLMAPI):
         **kwargs: Any,
     ) -> str:
         """生成文本"""
-        import httpx
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
         data = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -103,14 +71,8 @@ class DeepSeek_API(BaseLLMAPI):
             "max_tokens": max_tokens,
         }
 
-        response = httpx.post(
-            f"{self.base_url}/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=60,
-        )
-        response.raise_for_status()
-        result = response.json()
+        response = self.post("/v1/chat/completions", data=data)
+        result = self.parse_json_response(response)
         return result["choices"][0]["message"]["content"]
 
 
@@ -127,15 +89,9 @@ class Qwen_API(BaseLLMAPI):
     def __init__(
         self,
         api_key: str,
-        base_url: str = "https://dashscope.aliyuncs.com",
     ) -> None:
-        """初始化通义千问 API客户端
-
-        Args:
-            api_key: 阿里云API密钥
-            base_url: API基础URL
-        """
-        super().__init__(api_key, "qwen-turbo", base_url)
+        """初始化通义千问 API客户端"""
+        super().__init__(api_key, "qwen-turbo", "https://dashscope.aliyuncs.com")
 
     def generate(
         self,
@@ -145,13 +101,6 @@ class Qwen_API(BaseLLMAPI):
         **kwargs: Any,
     ) -> str:
         """生成文本"""
-        import httpx
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
         data = {
             "model": self.model,
             "input": {
@@ -164,14 +113,11 @@ class Qwen_API(BaseLLMAPI):
             }
         }
 
-        response = httpx.post(
-            f"{self.base_url}/api/v1/services/aigc/text-generation/generation",
-            headers=headers,
-            json=data,
-            timeout=60,
+        response = self.post(
+            "/api/v1/services/aigc/text-generation/generation",
+            data=data
         )
-        response.raise_for_status()
-        result = response.json()
+        result = self.parse_json_response(response)
         return result["output"]["text"]
 
 
@@ -188,15 +134,9 @@ class Zhipu_API(BaseLLMAPI):
     def __init__(
         self,
         api_key: str,
-        base_url: str = "https://open.bigmodel.cn",
     ) -> None:
-        """初始化智谱AI API客户端
-
-        Args:
-            api_key: 智谱API密钥
-            base_url: API基础URL
-        """
-        super().__init__(api_key, "glm-4", base_url)
+        """初始化智谱AI API客户端"""
+        super().__init__(api_key, "glm-4", "https://open.bigmodel.cn")
 
     def generate(
         self,
@@ -206,13 +146,6 @@ class Zhipu_API(BaseLLMAPI):
         **kwargs: Any,
     ) -> str:
         """生成文本"""
-        import httpx
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
         data = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -220,14 +153,8 @@ class Zhipu_API(BaseLLMAPI):
             "max_tokens": max_tokens,
         }
 
-        response = httpx.post(
-            f"{self.base_url}/api/paas/v4/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=60,
-        )
-        response.raise_for_status()
-        result = response.json()
+        response = self.post("/api/paas/v4/chat/completions", data=data)
+        result = self.parse_json_response(response)
         return result["choices"][0]["message"]["content"]
 
 
@@ -244,15 +171,9 @@ class Kimi_API(BaseLLMAPI):
     def __init__(
         self,
         api_key: str,
-        base_url: str = "https://api.moonshot.cn",
     ) -> None:
-        """初始化Kimi API客户端
-
-        Args:
-            api_key: Moonshot API密钥
-            base_url: API基础URL
-        """
-        super().__init__(api_key, "moonshot-v1-8k", base_url)
+        """初始化Kimi API客户端"""
+        super().__init__(api_key, "moonshot-v1-8k", "https://api.moonshot.cn")
 
     def generate(
         self,
@@ -262,13 +183,6 @@ class Kimi_API(BaseLLMAPI):
         **kwargs: Any,
     ) -> str:
         """生成文本"""
-        import httpx
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
         data = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -276,14 +190,8 @@ class Kimi_API(BaseLLMAPI):
             "max_tokens": max_tokens,
         }
 
-        response = httpx.post(
-            f"{self.base_url}/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=60,
-        )
-        response.raise_for_status()
-        result = response.json()
+        response = self.post("/v1/chat/completions", data=data)
+        result = self.parse_json_response(response)
         return result["choices"][0]["message"]["content"]
 
 
@@ -291,7 +199,7 @@ class Kimi_API(BaseLLMAPI):
 # 国内图像生成API
 # =============================================================================
 
-class BaseImageAPI(ABC):
+class BaseImageAPI(BaseHTTPClient):
     """图像生成API基类"""
 
     @abstractmethod
@@ -302,7 +210,7 @@ class BaseImageAPI(ABC):
         width: int = 1024,
         height: int = 1024,
         **kwargs: Any,
-    ) -> bytes:
+    ) -> ImageData:
         """生成图像
 
         Args:
@@ -331,16 +239,10 @@ class FluxCN_API(BaseImageAPI):
     def __init__(
         self,
         api_key: str,
-        base_url: str | None = None,
+        base_url: str = "https://api.fluxcn.cn",
     ) -> None:
-        """初始化FluxCN API客户端
-
-        Args:
-            api_key: API密钥
-            base_url: API基础URL，默认使用官方中转
-        """
-        self.api_key = api_key
-        self.base_url = base_url or "https://api.fluxcn.cn"
+        """初始化FluxCN API客户端"""
+        super().__init__(api_key, base_url)
 
     def generate(
         self,
@@ -349,15 +251,8 @@ class FluxCN_API(BaseImageAPI):
         width: int = 1024,
         height: int = 1024,
         **kwargs: Any,
-    ) -> bytes:
+    ) -> ImageData:
         """生成图像"""
-        import httpx
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
         data = {
             "prompt": prompt,
             "negative_prompt": negative,
@@ -367,18 +262,12 @@ class FluxCN_API(BaseImageAPI):
             "guidance_scale": kwargs.get("cfg_scale", 7.5),
         }
 
-        response = httpx.post(
-            f"{self.base_url}/v1/generate",
-            headers=headers,
-            json=data,
-            timeout=120,
-        )
-        response.raise_for_status()
-        result = response.json()
+        response = self.post("/v1/generate", data=data)
+        result = self.parse_json_response(response)
 
         # 下载图像
         if "image_url" in result:
-            img_response = httpx.get(result["image_url"])
+            img_response = self.get(result["image_url"])
             return img_response.content
         elif "image_base64" in result:
             return base64.b64decode(result["image_base64"])
@@ -400,13 +289,8 @@ class QwenImage_API(BaseImageAPI):
         self,
         api_key: str,
     ) -> None:
-        """初始化通义万相 API客户端
-
-        Args:
-            api_key: 阿里云API密钥
-        """
-        self.api_key = api_key
-        self.base_url = "https://dashscope.aliyuncs.com"
+        """初始化通义万相 API客户端"""
+        super().__init__(api_key, "https://dashscope.aliyuncs.com")
 
     def generate(
         self,
@@ -415,15 +299,8 @@ class QwenImage_API(BaseImageAPI):
         width: int = 1024,
         height: int = 1024,
         **kwargs: Any,
-    ) -> bytes:
+    ) -> ImageData:
         """生成图像"""
-        import httpx
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
         data = {
             "model": "wanx-v1",
             "input": {
@@ -436,14 +313,11 @@ class QwenImage_API(BaseImageAPI):
             }
         }
 
-        response = httpx.post(
-            f"{self.base_url}/api/v1/services/aigc/text2image/image-synthesis",
-            headers=headers,
-            json=data,
-            timeout=120,
+        response = self.post(
+            "/api/v1/services/aigc/text2image/image-synthesis",
+            data=data
         )
-        response.raise_for_status()
-        result = response.json()
+        result = self.parse_json_response(response)
 
         if "output" in result and "results" in result["output"]:
             return base64.b64decode(result["output"]["results"][0]["b64_image"])
@@ -454,7 +328,7 @@ class QwenImage_API(BaseImageAPI):
 # 国内TTS API
 # =============================================================================
 
-class BaseTTSAPI(ABC):
+class BaseTTSAPI(BaseHTTPClient):
     """TTS API基类"""
 
     @abstractmethod
@@ -463,7 +337,7 @@ class BaseTTSAPI(ABC):
         text: str,
         voice_id: str | None = None,
         **kwargs: Any,
-    ) -> bytes:
+    ) -> AudioData:
         """合成语音
 
         Args:
@@ -490,31 +364,17 @@ class FishAudio_API(BaseTTSAPI):
     def __init__(
         self,
         api_key: str,
-        base_url: str = "https://api.fish.audio",
     ) -> None:
-        """初始化鱼声API客户端
-
-        Args:
-            api_key: API密钥
-            base_url: API基础URL
-        """
-        self.api_key = api_key
-        self.base_url = base_url
+        """初始化鱼声API客户端"""
+        super().__init__(api_key, "https://api.fish.audio")
 
     def synthesize(
         self,
         text: str,
         voice_id: str | None = None,
         **kwargs: Any,
-    ) -> bytes:
+    ) -> AudioData:
         """合成语音"""
-        import httpx
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
         data = {
             "text": text,
             "voice": voice_id or "female_qingxin",
@@ -522,21 +382,16 @@ class FishAudio_API(BaseTTSAPI):
             "format": "mp3",
         }
 
-        response = httpx.post(
-            f"{self.base_url}/v1/tts",
-            headers=headers,
-            json=data,
-            timeout=30,
-        )
-        response.raise_for_status()
+        response = self.post("/v1/tts", data=data)
 
         # 返回音频数据
         if response.headers.get("content-type", "").startswith("audio"):
             return response.content
 
-        result = response.json()
+        result = self.parse_json_response(response)
         if "audio_url" in result:
-            return httpx.get(result["audio_url"]).content
+            audio_response = self.get(result["audio_url"])
+            return audio_response.content
 
         raise ValueError("Unknown response format")
 
@@ -556,22 +411,16 @@ class XingTuo_API(BaseTTSAPI):
         api_key: str,
         app_id: str,
     ) -> None:
-        """初始化标贝API客户端
-
-        Args:
-            api_key: API密钥
-            app_id: 应用ID
-        """
-        self.api_key = api_key
+        """初始化标贝API客户端"""
+        super().__init__(api_key, "https://api.xfyun.cn")
         self.app_id = app_id
-        self.base_url = "https://api.xfyun.cn"
 
     def synthesize(
         self,
         text: str,
         voice_id: str | None = None,
         **kwargs: Any,
-    ) -> bytes:
+    ) -> AudioData:
         """合成语音"""
         # 标贝API实现
         # TODO: 根据实际API文档实现
@@ -591,24 +440,11 @@ def create_llm_api(
 
     Args:
         provider: 提供商名称
-            - "deepseek": DeepSeek
-            - "qwen": 通义千问
-            - "zhipu": 智谱AI
-            - "kimi": Moonshot Kimi
-            - "openai": OpenAI (备用)
-            - "anthropic": Anthropic (备用)
         api_key: API密钥
         **kwargs: 其他参数
 
     Returns:
         LLM API实例
-
-    Raises:
-        ValueError: 不支持的提供商
-
-    Examples:
-        >>> api = create_llm_api("deepseek", "sk-xxx")
-        >>> result = api.generate("写一个故事")
     """
     factories: dict[str, type[BaseLLMAPI]] = {
         "deepseek": DeepSeek_API,
@@ -617,21 +453,13 @@ def create_llm_api(
         "kimi": Kimi_API,
     }
 
-    if provider in factories:
-        return factories[provider](api_key, **kwargs)
+    if provider not in factories:
+        raise ValueError(
+            f"Unknown provider: {provider}. "
+            f"Supported: {', '.join(factories.keys())}"
+        )
 
-    # 备用国外服务
-    if provider == "openai":
-        from frameleap.utils.llm_api import OpenAI_API
-        return OpenAI_API(api_key, **kwargs)  # type: ignore
-    if provider == "anthropic":
-        from frameleap.utils.llm_api import Anthropic_API
-        return Anthropic_API(api_key, **kwargs)  # type: ignore
-
-    raise ValueError(
-        f"Unknown provider: {provider}. "
-        f"Supported: {', '.join(list(factories.keys()) + ['openai', 'anthropic'])}"
-    )
+    return factories[provider](api_key, **kwargs)
 
 
 def create_image_api(
@@ -643,43 +471,24 @@ def create_image_api(
 
     Args:
         provider: 提供商名称
-            - "flux_cn": Flux国内镜像
-            - "qwen_image": 通义万相
-            - "openai": DALL-E (备用)
-            - "stability": Stability AI (备用)
         api_key: API密钥
         **kwargs: 其他参数
 
     Returns:
         图像生成API实例
-
-    Raises:
-        ValueError: 不支持的提供商
-
-    Examples:
-        >>> api = create_image_api("flux_cn", "sk-xxx")
-        >>> image = api.generate("一只猫")
     """
     factories: dict[str, type[BaseImageAPI]] = {
         "flux_cn": FluxCN_API,
         "qwen_image": QwenImage_API,
     }
 
-    if provider in factories:
-        return factories[provider](api_key, **kwargs)
+    if provider not in factories:
+        raise ValueError(
+            f"Unknown provider: {provider}. "
+            f"Supported: {', '.join(factories.keys())}"
+        )
 
-    # 备用国外服务
-    if provider == "openai":
-        from frameleap.utils.image_api import OpenAIImageAPI
-        return OpenAIImageAPI(api_key)  # type: ignore
-    if provider == "stability":
-        from frameleap.utils.image_api import StabilityAPI
-        return StabilityAPI(api_key)  # type: ignore
-
-    raise ValueError(
-        f"Unknown provider: {provider}. "
-        f"Supported: {', '.join(list(factories.keys()) + ['openai', 'stability'])}"
-    )
+    return factories[provider](api_key, **kwargs)
 
 
 def create_tts_api(
@@ -691,20 +500,11 @@ def create_tts_api(
 
     Args:
         provider: 提供商名称
-            - "fish": 鱼声AI
-            - "xingtuo": 标贝TTS
-        api_key: API密钥（鱼声需要，标贝需要app_id）
+        api_key: API密钥
         **kwargs: 其他参数
 
     Returns:
         TTS API实例
-
-    Raises:
-        ValueError: 不支持的提供商
-
-    Examples:
-        >>> api = create_tts_api("fish", api_key="sk-xxx")
-        >>> audio = api.synthesize("你好")
     """
     factories: dict[str, type[BaseTTSAPI]] = {
         "fish": FishAudio_API,
