@@ -8,13 +8,45 @@
 4. 音画同步：分段生成音频后与视频对齐拼接
 """
 
-from typing import List, Tuple
+from typing import List
 import re
+import uuid
 from pathlib import Path
 
 from frameleap.config import Config
 from frameleap.models import ScriptData, SceneData, CameraShot, TimeRange
 
+
+# =============================================================================
+# 配置常量
+# =============================================================================
+
+# 时间相关常量
+DEFAULT_MAX_SEGMENT_DURATION = 8.0  # 每段最长8秒
+DEFAULT_TRANSITION_DURATION = 0.5  # 转场时长（秒）
+
+# 时长估算常量
+BASE_SCENE_DURATION = 3.0  # 基础场景时长（秒）
+READING_SPEED = 4.0  # 阅读速度（字/秒）
+AVG_DIALOGUE_DURATION = 2.5  # 平均每句对话时长（秒）
+
+# 节奏系数
+RHYTHM_MULTIPLIERS = {
+    "slow": 1.5,
+    "medium": 1.0,
+    "fast": 0.7,
+}
+
+# FFmpeg 常量
+VIDEO_CODEC = "libx264"
+VIDEO_PRESET = "medium"
+VIDEO_CRF = "23"
+PIX_FMT = "yuv420p"
+
+
+# =============================================================================
+# 视频分段规划器
+# =============================================================================
 
 class VideoSegmentPlanner:
     """
@@ -27,12 +59,16 @@ class VideoSegmentPlanner:
     """
 
     def __init__(self, cfg: Config):
+        """初始化分段规划器
+
+        Args:
+            cfg: 配置对象
+        """
         self.cfg = cfg
-        self.max_segment_duration = 8.0  # 每段最长8秒（适应10秒限制）
+        self.max_segment_duration = DEFAULT_MAX_SEGMENT_DURATION
 
     def plan_segments(self, script: ScriptData) -> List[List[SceneData]]:
-        """
-        规划视频分段
+        """规划视频分段
 
         Args:
             script: 剧本数据
@@ -45,84 +81,87 @@ class VideoSegmentPlanner:
         current_duration = 0.0
 
         for scene in script.scenes:
-            # 估算场景时长
             scene_duration = self._estimate_scene_duration(scene)
 
-            # 如果加上当前场景会超限
             if current_duration + scene_duration > self.max_segment_duration:
-                # 检查是否可以在场景内分段
                 if scene_duration > self.max_segment_duration:
-                    # 需要在场景内部分段
-                    sub_segments = self._split_scene(scene, self.max_segment_duration - current_duration)
+                    # 场景内部分段
+                    sub_segments = self._split_scene(
+                        scene,
+                        self.max_segment_duration - current_duration
+                    )
                     if current_segment:
                         current_segment.append(sub_segments[0])
                         segments.append(current_segment)
                         current_segment = sub_segments[1:]
                     else:
                         current_segment = sub_segments
-                    current_duration = sum(self._estimate_scene_duration(s) for s in current_segment)
+                    current_duration = sum(
+                        self._estimate_scene_duration(s) for s in current_segment
+                    )
                 else:
-                    # 完整场景开始新分段
+                    # 新分段
                     current_segment.append(scene)
                     segments.append(current_segment)
                     current_segment = []
                     current_duration = 0.0
             else:
-                # 加入当前分段
                 current_segment.append(scene)
                 current_duration += scene_duration
 
-        # 处理最后一段
+        # 处理剩余
         if current_segment:
             segments.append(current_segment)
 
         return segments
 
     def _estimate_scene_duration(self, scene: SceneData) -> float:
-        """
-        估算场景时长
+        """估算场景时长
 
         从导演角度：
         - 对话场景：根据字数估算（约3字/秒）
         - 动作场景：固定时长
         - 情感场景：适当延长
+
+        Args:
+            scene: 场景数据
+
+        Returns:
+            估算的时长（秒）
         """
         # 获取场景文本
         text = scene.description or ""
         for elem in scene.elements:
             text += " " + elem.content
 
-        # 计算字数
         char_count = len(text.strip())
 
         # 获取节奏信息
         rhythm = scene.metadata.get("rhythm", "medium")
         intensity = scene.metadata.get("intensity", 0.5)
 
-        # 基础时长：每场景3-5秒
-        base_duration = 3.0
+        # 基础时长
+        base_duration = BASE_SCENE_DURATION
 
         # 根据字数调整
         if char_count > 0:
-            reading_time = char_count / 4.0  # 每秒4字
-            base_duration = max(3.0, reading_time)
+            reading_time = char_count / READING_SPEED
+            base_duration = max(BASE_SCENE_DURATION, reading_time)
 
         # 根据节奏调整
-        rhythm_multiplier = {
-            "slow": 1.5,
-            "medium": 1.0,
-            "fast": 0.7,
-        }
-        base_duration *= rhythm_multiplier.get(rhythm, 1.0)
+        base_duration *= RHYTHM_MULTIPLIERS.get(rhythm, 1.0)
 
-        # 根据强度调整（高强度=快节奏=短时长）
+        # 根据强度调整
         base_duration *= (1.2 - intensity * 0.4)
 
         return min(base_duration, self.max_segment_duration)
 
-    def _split_scene(self, scene: SceneData, max_duration: float) -> List[SceneData]:
-        """
-        分割场景
+    def _split_scene(
+        self,
+        scene: SceneData,
+        max_duration: float,
+    ) -> List[SceneData]:
+        """分割场景
 
         Args:
             scene: 要分割的场景
@@ -131,33 +170,40 @@ class VideoSegmentPlanner:
         Returns:
             分割后的场景列表
         """
-        # 如果场景有对话，按对话分割
         dialogues = [e for e in scene.elements if e.type == "dialogue"]
 
         if dialogues:
             return self._split_by_dialogue(scene, max_duration, dialogues)
         else:
-            # 按描述内容分割
             return self._split_by_content(scene, max_duration)
 
-    def _split_by_dialogue(self, scene: SceneData, max_duration: float, dialogues: list) -> List[SceneData]:
-        """按对话分割场景"""
-        import uuid
+    def _split_by_dialogue(
+        self,
+        scene: SceneData,
+        max_duration: float,
+        dialogues: list,
+    ) -> List[SceneData]:
+        """按对话分割场景
 
+        Args:
+            scene: 场景数据
+            max_duration: 最大时长
+            dialogues: 对话元素列表
+
+        Returns:
+            分割后的场景列表
+        """
         segments = []
         current_elements = []
         current_text = ""
 
-        # 估算每句对话的时长
-        avg_dialogue_duration = 2.5  # 平均每句对话2.5秒
-        max_dialogues_per_segment = int(max_duration / avg_dialogue_duration)
+        max_dialogues = int(max_duration / AVG_DIALOGUE_DURATION)
 
         for i, dialogue in enumerate(dialogues):
             current_elements.append(dialogue)
             current_text += " " + dialogue.content
 
-            if len(current_elements) >= max_dialogues_per_segment:
-                # 创建新的场景片段
+            if len(current_elements) >= max_dialogues:
                 new_scene = SceneData(
                     id=f"{scene.id}_part_{len(segments)}",
                     order=scene.order,
@@ -176,7 +222,7 @@ class VideoSegmentPlanner:
                 current_elements = []
                 current_text = ""
 
-        # 处理剩余内容
+        # 处理剩余
         if current_elements:
             new_scene = SceneData(
                 id=f"{scene.id}_part_{len(segments)}",
@@ -195,10 +241,20 @@ class VideoSegmentPlanner:
 
         return segments if segments else [scene]
 
-    def _split_by_content(self, scene: SceneData, max_duration: float) -> List[SceneData]:
-        """按内容分割场景"""
-        import uuid
+    def _split_by_content(
+        self,
+        scene: SceneData,
+        max_duration: float,
+    ) -> List[SceneData]:
+        """按内容分割场景
 
+        Args:
+            scene: 场景数据
+            max_duration: 最大时长
+
+        Returns:
+            分割后的场景列表
+        """
         description = scene.description or ""
 
         # 按句子分割
@@ -208,7 +264,6 @@ class VideoSegmentPlanner:
         if len(sentences) <= 1:
             return [scene]
 
-        # 估算每句话的时长
         avg_sentence_duration = max_duration / len(sentences)
 
         segments = []
@@ -216,10 +271,9 @@ class VideoSegmentPlanner:
         current_duration = 0.0
 
         for sentence in sentences:
-            sentence_duration = len(sentence) / 4.0  # 每秒4字
+            sentence_duration = len(sentence) / READING_SPEED
 
             if current_duration + sentence_duration > max_duration and current_content:
-                # 创建新片段
                 new_scene = SceneData(
                     id=f"{scene.id}_part_{len(segments)}",
                     order=scene.order,
@@ -238,7 +292,7 @@ class VideoSegmentPlanner:
                 current_content += sentence + "。"
                 current_duration += sentence_duration
 
-        # 处理剩余内容
+        # 处理剩余
         if current_content:
             new_scene = SceneData(
                 id=f"{scene.id}_part_{len(segments)}",
@@ -256,6 +310,10 @@ class VideoSegmentPlanner:
         return segments if segments else [scene]
 
 
+# =============================================================================
+# 视频分段合成器
+# =============================================================================
+
 class VideoSegmentComposer:
     """
     视频分段合成器
@@ -267,12 +325,20 @@ class VideoSegmentComposer:
     """
 
     def __init__(self, cfg: Config):
-        self.cfg = cfg
-        self.transition_duration = 0.5  # 转场时长（秒）
+        """初始化合成器
 
-    def compose_segments(self, segment_paths: List[str], output_path: Path) -> str:
+        Args:
+            cfg: 配置对象
         """
-        合并视频分段
+        self.cfg = cfg
+        self.transition_duration = DEFAULT_TRANSITION_DURATION
+
+    def compose_segments(
+        self,
+        segment_paths: List[str],
+        output_path: Path,
+    ) -> str:
+        """合并视频分段
 
         Args:
             segment_paths: 视频分段路径列表
@@ -280,6 +346,9 @@ class VideoSegmentComposer:
 
         Returns:
             合并后的视频路径
+
+        Raises:
+            ValueError: 没有分段可合并
         """
         if not segment_paths:
             raise ValueError("No segments to compose")
@@ -287,7 +356,6 @@ class VideoSegmentComposer:
         if len(segment_paths) == 1:
             return segment_paths[0]
 
-        # 使用FFmpeg合并
         import subprocess
 
         # 创建临时文件列表
@@ -296,7 +364,7 @@ class VideoSegmentComposer:
             for path in segment_paths:
                 f.write(f"file '{path}'\n")
 
-        # 使用concat过滤器合并，添加淡入淡出转场
+        # 尝试带转场合并
         filter_complex = self._build_transition_filter(len(segment_paths))
 
         cmd = [
@@ -305,40 +373,61 @@ class VideoSegmentComposer:
             "-safe", "0",
             "-i", str(list_file),
             "-filter_complex", filter_complex,
-            "-c:v", "libx264",
-            "-preset", "medium",
-            "-crf", "23",
-            "-pix_fmt", "yuv420p",
+            "-c:v", VIDEO_CODEC,
+            "-preset", VIDEO_PRESET,
+            "-crf", VIDEO_CRF,
+            "-pix_fmt", PIX_FMT,
             str(output_path),
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
-            # 如果转场失败，尝试简单合并
+            # 转场失败，使用简单合并
             return self._simple_concat(segment_paths, output_path)
 
         return str(output_path)
 
     def _build_transition_filter(self, segment_count: int) -> str:
-        """构建转场滤镜"""
+        """构建转场滤镜
+
+        Args:
+            segment_count: 分段数量
+
+        Returns:
+            FFmpeg滤镜字符串
+        """
         if segment_count <= 1:
             return ""
 
-        # 简单的淡入淡出
-        max_duration = 8.0  # 与VideoSegmentPlanner保持一致
         parts = []
         for i in range(segment_count):
-            parts.append(f"[{i}:v]fade=t=in:st=0:d=0.5,fade=t=out:st={max_duration-0.5}:d=0.5[v{i}]")
+            parts.append(
+                f"[{i}:v]fade=t=in:st=0:d=0.5,fade=t=out:"
+                f"st={DEFAULT_MAX_SEGMENT_DURATION-0.5}:d=0.5[v{i}]"
+            )
 
-        # 连接所有片段
         concat_inputs = "".join([f"[v{i}]" for i in range(segment_count)])
-        parts.append(f"{concat_inputs}concat=n={segment_count}:v=1:a=0[outv]")
+        parts.append(
+            f"{concat_inputs}concat=n={segment_count}:v=1:a=0[outv]"
+        )
 
         return ";".join(parts)
 
-    def _simple_concat(self, segment_paths: List[str], output_path: Path) -> str:
-        """简单合并（无转场）"""
+    def _simple_concat(
+        self,
+        segment_paths: List[str],
+        output_path: Path,
+    ) -> str:
+        """简单合并（无转场）
+
+        Args:
+            segment_paths: 视频分段路径列表
+            output_path: 输出路径
+
+        Returns:
+            合并后的视频路径
+        """
         import subprocess
 
         list_file = self.cfg.paths.temp_dir / "segments_simple.txt"
@@ -358,8 +447,20 @@ class VideoSegmentComposer:
         subprocess.run(cmd, check=True)
         return str(output_path)
 
-    def merge_audio_segments(self, audio_paths: List[str], output_path: Path) -> str:
-        """合并音频分段"""
+    def merge_audio_segments(
+        self,
+        audio_paths: List[str],
+        output_path: Path,
+    ) -> str:
+        """合并音频分段
+
+        Args:
+            audio_paths: 音频分段路径列表
+            output_path: 输出路径
+
+        Returns:
+            合并后的音频路径
+        """
         import subprocess
 
         list_file = self.cfg.paths.temp_dir / "audio_segments.txt"
@@ -380,6 +481,10 @@ class VideoSegmentComposer:
         return str(output_path)
 
 
+# =============================================================================
+# 长视频生成器
+# =============================================================================
+
 class LongVideoGenerator:
     """
     长视频生成器 - 整合分段规划和合成
@@ -393,13 +498,22 @@ class LongVideoGenerator:
     """
 
     def __init__(self, cfg: Config):
+        """初始化长视频生成器
+
+        Args:
+            cfg: 配置对象
+        """
         self.cfg = cfg
         self.planner = VideoSegmentPlanner(cfg)
         self.composer = VideoSegmentComposer(cfg)
 
-    def generate_long_video(self, script: ScriptData, video_segments: List, audio_segments: List) -> str:
-        """
-        生成长视频
+    def generate_long_video(
+        self,
+        script: ScriptData,
+        video_segments: List,
+        audio_segments: List,
+    ) -> str:
+        """生成长视频
 
         Args:
             script: 剧本
@@ -421,13 +535,24 @@ class LongVideoGenerator:
         self.composer.merge_audio_segments(audio_segments, audio_output)
 
         # 音视频合成
-        final_output = self.cfg.paths.output_dir / "output.mp4"
+        final_output = self.cfg.paths.work_dir / "output.mp4"
         self._merge_av(video_output, audio_output, final_output)
 
         return str(final_output)
 
-    def _merge_av(self, video_path: Path, audio_path: Path, output_path: Path):
-        """合并音视频"""
+    def _merge_av(
+        self,
+        video_path: Path,
+        audio_path: Path,
+        output_path: Path,
+    ) -> None:
+        """合并音视频
+
+        Args:
+            video_path: 视频文件路径
+            audio_path: 音频文件路径
+            output_path: 输出文件路径
+        """
         import subprocess
 
         cmd = [
@@ -444,6 +569,18 @@ class LongVideoGenerator:
 
 
 __all__ = [
+    # 常量
+    "DEFAULT_MAX_SEGMENT_DURATION",
+    "DEFAULT_TRANSITION_DURATION",
+    "BASE_SCENE_DURATION",
+    "READING_SPEED",
+    "AVG_DIALOGUE_DURATION",
+    "RHYTHM_MULTIPLIERS",
+    "VIDEO_CODEC",
+    "VIDEO_PRESET",
+    "VIDEO_CRF",
+    "PIX_FMT",
+    # 类
     "VideoSegmentPlanner",
     "VideoSegmentComposer",
     "LongVideoGenerator",

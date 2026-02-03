@@ -4,7 +4,7 @@
 集中定义项目中的类型别名，提高代码可读性和可维护性
 """
 
-from typing import TypeAlias, Any
+from typing import TypeAlias, Any, Callable
 from pathlib import Path
 
 # 基础类型别名
@@ -44,8 +44,8 @@ ShotID: TypeAlias = str
 NodeID: TypeAlias = str
 
 # 回调函数类型
-ProgressCallback: TypeAlias = callable[[str, float], None]
-ErrorCallback: TypeAlias = callable[[Exception], None]
+ProgressCallback: TypeAlias = Callable[[str, float], None]
+ErrorCallback: TypeAlias = Callable[[Exception], None]
 
 # 结果类型
 ResultType: TypeAlias = JSONDict | list[JSONDict] | str | bytes | None
