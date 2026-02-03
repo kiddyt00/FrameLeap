@@ -190,16 +190,6 @@ python git_auto_new.py -h
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启 Pull Request
 
-## 许可证
-
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
-
-## 致谢
-
-- Stable Diffusion 团队
-- AnimateDiff 项目
-- 所有开源贡献者
-
 ---
 
 *最后更新：2026-02-03*
