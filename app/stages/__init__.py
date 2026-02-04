@@ -495,6 +495,8 @@ class ImageGenerationStage(BaseStage):
         try:
             print(f"[DEBUG] 调用API.generate, prompt长度: {len(prompt)}")
             print(f"[DEBUG] 尺寸: {self.cfg.video.width}x{self.cfg.video.height}")
+            print(f"[DEBUG] 输出路径: {output_path}")
+            print(f"[DEBUG] 输出路径(绝对): {output_path.absolute()}")
 
             image_data = self.api.generate(
                 prompt=prompt,
@@ -504,8 +506,14 @@ class ImageGenerationStage(BaseStage):
             )
 
             print(f"[DEBUG] API返回数据长度: {len(image_data)} 字节")
+
+            # 确保父目录存在
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
             output_path.write_bytes(image_data)
             print(f"[DEBUG] 图像已保存: {output_path}")
+            print(f"[DEBUG] 图像文件存在: {output_path.exists()}")
+            print(f"[DEBUG] 图像文件大小: {output_path.stat().st_size if output_path.exists() else 0} 字节")
         except Exception as e:
             import traceback
             print(f"[ERROR] 图像生成失败: {e}")

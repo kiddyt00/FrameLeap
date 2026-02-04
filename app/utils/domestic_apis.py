@@ -298,6 +298,13 @@ class QwenImage_API(BaseImageAPI):
         """初始化通义万相 API客户端"""
         super().__init__(api_key, "https://dashscope.aliyuncs.com")
 
+    @property
+    def headers(self) -> dict[str, str]:
+        """获取默认请求头（添加异步调用支持）"""
+        base_headers = super().headers
+        base_headers["X-DashScope-Async"] = "enable"
+        return base_headers
+
     def generate(
         self,
         prompt: str,
@@ -322,7 +329,7 @@ class QwenImage_API(BaseImageAPI):
             }
         }
 
-        print(f"[DEBUG] 提交通义万相任务...")
+        print(f"[DEBUG] 提交通义万相任务（异步模式）...")
         response = self.post(
             "/api/v1/services/aigc/text2image/image-synthesis",
             data=data
@@ -331,9 +338,17 @@ class QwenImage_API(BaseImageAPI):
 
         print(f"[DEBUG] 任务提交响应: {result}")
 
-        # 检查是否有错误
-        if "code" in result and result["code"] != "" and result["code"] != "Success":
-            raise ValueError(f"通义万相API错误: {result.get('message', '未知错误')}")
+        # 检查是否有错误（空code表示成功）
+        if "code" in result:
+            code = result["code"]
+            if code and code != "Success" and code != "":
+                error_msg = result.get("message", "未知错误")
+                if code == "AccessDenied":
+                    raise ValueError(f"访问被拒绝: {error_msg}。可能需要添加异步请求头或检查API密钥权限。")
+                elif code == "Throttling.RateQuota":
+                    raise ValueError(f"速率限制: {error_msg}。请稍后再试。")
+                else:
+                    raise ValueError(f"通义万相API错误 [{code}]: {error_msg}")
 
         # 获取task_id
         if "output" not in result or "task_id" not in result["output"]:
@@ -345,7 +360,7 @@ class QwenImage_API(BaseImageAPI):
 
         # 步骤2: 轮询任务结果
         max_wait = 120  # 最多等待120秒
-        interval = 2    # 每2秒检查一次
+        interval = 3    # 每3秒检查一次（降低频率避免速率限制）
         waited = 0
 
         while waited < max_wait:
@@ -359,11 +374,11 @@ class QwenImage_API(BaseImageAPI):
                 f"/api/v1/tasks/{task_id}"
             )
             task_result = self.parse_json_response(result_response)
-            print(f"[DEBUG] 任务状态: {task_result.get('output', {}).get('task_status', 'unknown')}")
 
             # 检查任务状态
             if "output" in task_result:
                 task_status = task_result["output"].get("task_status", "")
+                print(f"[DEBUG] 任务状态: {task_status}")
 
                 if task_status == "SUCCEEDED":
                     # 任务成功，获取结果
@@ -372,9 +387,14 @@ class QwenImage_API(BaseImageAPI):
                         image_url = results[0]["url"]
                         print(f"[DEBUG] 图像URL: {image_url}")
 
-                        # 下载图像
-                        img_response = self.get(image_url.replace("https://dashscope.aliyuncs.com", ""))
-                        return img_response.content
+                        # 下载图像（使用完整URL）
+                        import httpx
+                        img_response = httpx.get(image_url, timeout=60.0)
+                        if img_response.status_code == 200:
+                            print(f"[DEBUG] 图像下载成功，大小: {len(img_response.content)} 字节")
+                            return img_response.content
+                        else:
+                            raise ValueError(f"图像下载失败: HTTP {img_response.status_code}")
 
                     # 如果有b64_image字段
                     if results and "b64_image" in results[0]:
@@ -384,7 +404,7 @@ class QwenImage_API(BaseImageAPI):
                     error_msg = task_result["output"].get("message", "未知错误")
                     raise ValueError(f"通义万相任务失败: {error_msg}")
 
-                # 任务仍在处理中，继续等待
+                # 任务仍在处理中（PENDING, RUNNING），继续等待
 
         raise ValueError(f"通义万相任务超时（等待{max_wait}秒）")
 

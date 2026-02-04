@@ -9,7 +9,28 @@
       "Bash(git push)",
       "Bash(ls:*)",
       "Bash(pip install:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist:*)",
+      "Bash(powershell:*)",
+      "Bash(python3:*)",
+      "Bash(py:*)",
+      "Bash(dir:*)",
+      "WebSearch",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" status)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" add app/generator.py app/stages/__init__.py app/utils/domestic_apis.py app/web.py config.json)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" commit -m \"feat: 重构为4阶段流程并集成通义万相图像生成\n\n- 重构Generator为4阶段流程：输入处理→剧本生成→场景描述→图像生成\n- 修复千问LLM API响应解析：正确解析output.choices[].message.content\n- 实现通义万相异步API：任务提交→轮询状态→下载图像\n- 添加Web图像显示：前端展示场景图像网格视图\n- 添加静态文件服务：/temp路由支持图像访问\n- 更新配置文件：添加image_provider和image_api_key配置\n- 添加详细调试日志：便于追踪API调用和响应\")",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" config user.email \"morefine@frameLeap.local\")",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" config user.name:*)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" push origin main)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" log --oneline -3 --graph --decorate)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" add app/generator.py)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" commit:*)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" add app/stages/__init__.py)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" commit -m \"fix: 添加图像生成延迟避免速率限制\n\n- 在图像生成之间添加2秒延迟\n- 避免触发通义万相API的QPS限制\")",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" add -A)",
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" commit -m \"fix: 修复图片下载和展示问题\n\n- 修复通义万相图片URL下载逻辑，使用完整URL\n- 删除配置文件中的相对路径，使用默认绝对路径\n- 添加详细的图片保存和访问日志\n- 添加前端图片URL调试日志和错误处理\n- 确保图片文件正确保存到temp目录\")"
     ]
   }
 }

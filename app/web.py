@@ -1404,13 +1404,15 @@ low quality, blurry, ugly, deformed, disfigured, bad anatomy, extra limbs, missi
                     `;
                     output.image_paths.forEach((path, idx) => {
                         // 将文件路径转换为URL
-                        const imageUrl = '/temp/' + path.split(/[\\/]/).pop();
+                        const fileName = path.split(/[\\/]/).pop();
+                        const imageUrl = '/temp/' + fileName;
+                        console.log(`[DEBUG] 图片 ${idx + 1}:`, { path, fileName, imageUrl });
                         html += `
                             <div style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: white;">
-                                <img src="${imageUrl}" alt="场景 ${idx + 1}" style="width: 100%; height: 200px; object-fit: cover; display: block;" onerror="this.parentElement.innerHTML='<div style=\\'padding:20px;text-align:center;color:#ef4444;\\'>图像加载失败</div>'">
+                                <img src="${imageUrl}" alt="场景 ${idx + 1}" style="width: 100%; height: 200px; object-fit: cover; display: block;" onload="console.log('图片加载成功:', '${imageUrl}')" onerror="console.error('图片加载失败:', '${imageUrl}'); this.parentElement.innerHTML='<div style=\\'padding:20px;text-align:center;color:#ef4444;\\'>图像加载失败<br><small>URL: ${imageUrl}</small></div>'">
                                 <div style="padding: 12px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
                                     <div style="font-weight: bold; color: #2563eb; margin-bottom: 4px;">场景 ${idx + 1}</div>
-                                    <div style="font-size: 12px; color: #64748b;">${path}</div>
+                                    <div style="font-size: 12px; color: #64748b;">${fileName}</div>
                                 </div>
                             </div>
                         `;
