@@ -462,9 +462,11 @@ class ImageGenerationStage(BaseStage):
                 # 创建占位文件
                 path.touch()
 
-            image_paths.append(str(path))
+            # 只返回文件名，不返回完整路径（便于前端构造URL）
+            image_paths.append(path.name)
 
         print(f"[DEBUG] 图像生成完成，共 {len(image_paths)} 张")
+        print(f"[DEBUG] 返回文件名列表: {image_paths}")
         return image_paths
 
     def _create_api(self):
