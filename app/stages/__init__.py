@@ -469,7 +469,9 @@ class SceneDescriptionStage(BaseStage):
 请直接返回提示词文本，不要有任何解释或其他文字。提示词应该用英文，用逗号分隔不同的元素。
 
 示例格式：
-masterpiece, best quality, highly detailed, [主体描述], [动作姿态], [服装细节], [表情神态], [环境背景], [构图描述], [光影效果], <color:{色彩方案}>, {风格关键词}
+masterpiece, best quality, highly detailed, [主体描述], [动作姿态], [服装细节], [表情神态], [环境背景], [构图描述], [光影效果], [色彩描述], {风格关键词}
+
+注意：不要使用尖括号<>或花括号{}包裹变量，直接描述具体的视觉效果即可。
 """
 
         try:
