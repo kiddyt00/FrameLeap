@@ -134,6 +134,19 @@ class Generator:
             if style:
                 self.cfg.style.art_style = style
 
+            # 通义万相只支持特定尺寸，需要调整
+            if self.cfg.api.image_provider == "qwen_image":
+                # 支持的尺寸: ['1024*1024', '720*1280', '1280*720', '768*1152']
+                # 选择最接近的尺寸
+                current_size = f"{self.cfg.video.width}*{self.cfg.video.height}"
+                supported_sizes = ['1024*1024', '720*1280', '1280*720', '768*1152']
+
+                if current_size not in supported_sizes:
+                    # 默认使用1024*1024（最通用的尺寸）
+                    print(f"[DEBUG] 调整图像尺寸: {current_size} -> 1024*1024")
+                    self.cfg.video.width = 1024
+                    self.cfg.video.height = 1024
+
             # 阶段1: 输入处理
             self._report_progress("输入处理", 0.25)
             input_data = self.input.process(text, style)
