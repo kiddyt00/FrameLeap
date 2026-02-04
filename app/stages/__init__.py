@@ -469,9 +469,9 @@ class SceneDescriptionStage(BaseStage):
 请直接返回提示词文本，不要有任何解释或其他文字。提示词应该用英文，用逗号分隔不同的元素。
 
 示例格式：
-masterpiece, best quality, highly detailed, [主体描述], [动作姿态], [服装细节], [表情神态], [环境背景], [构图描述], [光影效果], [色彩描述], {风格关键词}
+masterpiece, best quality, highly detailed, 主体描述, 动作姿态, 服装细节, 表情神态, 环境背景, 构图描述, 光影效果, 色彩描述, 风格关键词
 
-注意：不要使用尖括号<>或花括号{}包裹变量，直接描述具体的视觉效果即可。
+注意：直接描述具体的视觉效果，使用英文关键词。
 """
 
         try:
@@ -481,10 +481,10 @@ masterpiece, best quality, highly detailed, [主体描述], [动作姿态], [服
                 temperature=0.7,
                 max_tokens=500
             )
-            print(f"[DEBUG] LLM生成的提示词长度: {len(response)} 字符")
+            print(f"[DEBUG] LLM生成的提示词长度: {{len(response)}} 字符")
             return response.strip()
         except Exception as e:
-            print(f"[ERROR] LLM生成提示词失败: {e}，使用简化逻辑")
+            print(f"[ERROR] LLM生成提示词失败: {{e}}，使用简化逻辑")
             return self._build_simple_prompt(scene)
 
     def _build_simple_prompt(self, scene: SceneData) -> str:
