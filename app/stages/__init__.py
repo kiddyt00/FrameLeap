@@ -392,28 +392,105 @@ class SceneDescriptionData:
 
 
 class SceneDescriptionStage(BaseStage):
-    """画面描述生成阶段"""
+    """画面描述生成阶段 - 使用LLM生成高质量AI绘画提示词"""
+
+    def __init__(self, cfg: Config):
+        super().__init__(cfg)
+        self.llm_api = self._create_llm_api()
+
+    def _create_llm_api(self):
+        """创建LLM API实例用于生成提示词"""
+        provider = self.cfg.api.llm_provider
+        api_key = self.cfg.api.llm_api_key
+
+        if not api_key:
+            print("[WARN] 未设置LLM API密钥，提示词生成将使用简化逻辑")
+            return None
+
+        try:
+            from app.utils.domestic_apis import create_llm_api
+            return create_llm_api(provider, api_key)
+        except Exception as e:
+            print(f"[ERROR] 创建LLM API失败: {e}")
+            return None
 
     def generate(self, script: ScriptData) -> list[SceneDescriptionData]:
-        """生成场景描述"""
+        """生成场景描述和高质量AI绘画提示词"""
         descriptions = []
 
-        for scene in script.scenes:
+        for i, scene in enumerate(script.scenes):
+            print(f"[DEBUG] 生成场景 {i+1}/{len(script.scenes)} 的提示词: {scene.title}")
+
             desc = SceneDescriptionData()
             desc.scene_id = scene.id
             desc.description = scene.description or scene.title
-            desc.prompt = self._build_prompt(scene)
-            desc.negative_prompt = self._build_negative()
+
+            # 如果LLM可用，使用LLM生成详细提示词
+            if self.llm_api:
+                desc.prompt = self._generate_prompt_with_llm(scene, script)
+                desc.negative_prompt = self._build_negative()
+            else:
+                # 回退到简单提示词
+                desc.prompt = self._build_simple_prompt(scene)
+                desc.negative_prompt = self._build_negative()
+
+            print(f"[DEBUG] 提示词长度: {len(desc.prompt)} 字符")
             descriptions.append(desc)
 
         return descriptions
 
-    def _build_prompt(self, scene: SceneData) -> str:
-        """构建提示词"""
+    def _generate_prompt_with_llm(self, scene: SceneData, script: ScriptData) -> str:
+        """使用LLM生成详细的AI绘画提示词"""
+        import json
+
+        # 构建提示词生成请求
+        style = self.cfg.style.art_style
+        style_desc = self._get_style_description(style)
+
+        prompt = f"""你是一个专业的AI绘画提示词专家。请根据以下场景信息，生成一个高质量的AI绘画提示词。
+
+**场景信息：**
+- 场景标题：{scene.title}
+- 场景描述：{scene.description or '无详细描述'}
+- 场景氛围：{scene.atmosphere or '普通'}
+- 艺术风格：{style}（{style_desc}）
+- 故事主题：{script.theme}
+
+**提示词要求：**
+1. 详细的视觉描述（主体、动作、表情、服装等）
+2. 环境和背景细节
+3. 构图和景别
+4. 光影效果
+5. 色彩方案
+6. 质量标签（masterpiece, best quality等）
+7. 风格相关的关键词
+
+**输出格式：**
+请直接返回提示词文本，不要有任何解释或其他文字。提示词应该用英文，用逗号分隔不同的元素。
+
+示例格式：
+masterpiece, best quality, highly detailed, [主体描述], [动作姿态], [服装细节], [表情神态], [环境背景], [构图描述], [光影效果], <color:{色彩方案}>, {风格关键词}
+"""
+
+        try:
+            print(f"[DEBUG] 调用LLM生成提示词...")
+            response = self.llm_api.generate(
+                prompt=prompt,
+                temperature=0.7,
+                max_tokens=500
+            )
+            print(f"[DEBUG] LLM生成的提示词长度: {len(response)} 字符")
+            return response.strip()
+        except Exception as e:
+            print(f"[ERROR] LLM生成提示词失败: {e}，使用简化逻辑")
+            return self._build_simple_prompt(scene)
+
+    def _build_simple_prompt(self, scene: SceneData) -> str:
+        """构建简单的提示词（回退方案）"""
         from app.utils import build_prompt
 
         style = self.cfg.style.art_style
-        subject = scene.description or "anime scene"
+        subject = scene.description or scene.title
 
         return build_prompt(subject=subject, style=style)
 
@@ -421,6 +498,19 @@ class SceneDescriptionStage(BaseStage):
         """构建负面提示词"""
         from app.utils import build_negative_prompt
         return build_negative_prompt()
+
+    def _get_style_description(self, style: str) -> str:
+        """获取风格的详细描述"""
+        style_map = {
+            "anime": "日式动漫风格，扁平色彩，简洁线条",
+            "manhwa": "韩漫风格，色彩鲜艳，细节丰富",
+            "manhua": "国漫风格，传统绘画元素",
+            "watercolor": "水彩风格，柔和透明",
+            "oil": "油画风格，厚重质感",
+            "sketch": "素描风格，线条为主",
+            "flat": "扁平化设计，简洁明了",
+        }
+        return style_map.get(style, "通用风格")
 
 
 # =============================================================================
