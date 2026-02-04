@@ -436,6 +436,7 @@ class ImageGenerationStage(BaseStage):
 
     def generate(self, descriptions: list[SceneDescriptionData]) -> list[str]:
         """生成图像"""
+        import time
         image_paths = []
 
         print(f"[DEBUG] ImageGenerationStage.generate: 开始生成 {len(descriptions)} 张图像")
@@ -451,6 +452,11 @@ class ImageGenerationStage(BaseStage):
                 print(f"[DEBUG] 调用API生成图像: {path}")
                 self._generate_image(desc.prompt, desc.negative_prompt, path)
                 print(f"[DEBUG] 图像生成完成: {path.exists()}")
+
+                # 添加延迟避免速率限制（通义万相有QPS限制）
+                if i < len(descriptions) - 1:  # 最后一个不需要延迟
+                    print(f"[DEBUG] 等待2秒避免速率限制...")
+                    time.sleep(2)
             else:
                 print(f"[WARN] API不可用，创建占位文件: {path}")
                 # 创建占位文件
