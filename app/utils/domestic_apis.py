@@ -513,39 +513,34 @@ class XingTuo_API(BaseTTSAPI):
 
 
 class QwenTTS_API(BaseTTSAPI):
-    """通义千问TTS - 阿里云语音合成
+    """通义千问TTS - 阿里云语音合成（WebSocket）
 
-    使用CosyVoice或Sambert模型进行语音合成
+    使用CosyVoice模型进行语音合成，通过WebSocket实时通信
 
-    支持音色:
-    - Cherry: 活泼女声
-    - Aijia: 温柔女声
-    - Aida: 沉稳女声
-    - Aimei: 甜美女声
-    - Zhichu: 知性女声
-    - Aixia: 活泼女声
-    - Aibin: 沉稳男声
-    - Aitong: 童声
-    - Aiyue: 温暖女声
+    支持音色（cosyvoice-v1/v2）:
+    - longwan: 男声
+    - longxiaochun: 女声
+    - longxiaoxia: 童声
+
+    支持音色（cosyvoice-v3-flash/v3-plus）:
+    - longanyang: 男声
+    - longyue: 女声
 
     Example:
         >>> api = QwenTTS_API("sk-xxx")
-        >>> audio_data = api.synthesize("你好世界", voice_id="Cherry")
+        >>> audio_data = api.synthesize("你好世界", voice_id="longwan")
     """
+
+    # WebSocket URL
+    WS_URL = "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
 
     def __init__(
         self,
         api_key: str,
     ) -> None:
         """初始化通义千问TTS API客户端"""
-        super().__init__(api_key, "https://dashscope.aliyuncs.com")
-
-    @property
-    def headers(self) -> dict[str, str]:
-        """获取默认请求头"""
-        base_headers = super().headers
-        base_headers["X-DashScope-Async"] = "enable"
-        return base_headers
+        # 不调用父类初始化，因为不使用HTTP客户端
+        self.api_key = api_key
 
     def synthesize(
         self,
@@ -553,44 +548,186 @@ class QwenTTS_API(BaseTTSAPI):
         voice_id: str | None = None,
         **kwargs: Any,
     ) -> AudioData:
-        """合成语音（使用HTTP REST API）"""
+        """合成语音（使用WebSocket API）"""
+        import uuid
+        import threading
         import time
 
-        # 默认使用 Cherry 音色
-        voice = voice_id or kwargs.get("voice", "Cherry")
+        try:
+            import websocket
+        except ImportError:
+            raise ImportError("请安装 websocket-client: pip install websocket-client")
 
-        # 步骤1: 提交任务
-        data = {
-            "model": "cosyvoice-v1",
-            "input": {
-                "text": text
-            },
-            "parameters": {
-                "text_type": "PlainText",
-                "voice": voice,
-                # 可选参数
-                "sample_rate": kwargs.get("sample_rate", 24000),
-                "format": kwargs.get("format", "mp3"),
-                "rate": kwargs.get("rate", 1.0),  # 语速，范围0.5-2.0
-                "volume": kwargs.get("volume", 50),  # 音量，范围0-100
+        # 根据音色选择模型
+        voice = voice_id or kwargs.get("voice", "longwan")
+
+        # 判断模型版本（v3-flash 音色以long开头）
+        if voice.startswith("long") and voice not in ["longwan", "longxiaochun", "longxiaoxia"]:
+            model = "cosyvoice-v3-flash"
+        else:
+            model = "cosyvoice-v1"
+
+        # 生成任务ID
+        task_id = str(uuid.uuid4())
+
+        # 音频数据收集
+        audio_chunks = []
+        audio_complete = threading.Event()
+        error_message = [None]
+
+        # WebSocket回调函数
+        def on_open(ws):
+            """连接建立时发送run-task指令"""
+            print(f"[DEBUG] WebSocket连接已建立，发送run-task指令")
+
+            run_task_cmd = {
+                "header": {
+                    "action": "run-task",
+                    "task_id": task_id,
+                    "streaming": "duplex"
+                },
+                "payload": {
+                    "task_group": "audio",
+                    "task": "tts",
+                    "function": "SpeechSynthesizer",
+                    "model": model,
+                    "parameters": {
+                        "text_type": "PlainText",
+                        "voice": voice,
+                        "format": kwargs.get("format", "mp3"),
+                        "sample_rate": kwargs.get("sample_rate", 22050),
+                        "volume": kwargs.get("volume", 50),
+                        "rate": kwargs.get("rate", 1.0),
+                        "pitch": kwargs.get("pitch", 1.0),
+                        "enable_ssml": False
+                    },
+                    "input": {}
+                }
             }
+            ws.send_json(run_task_cmd)
+
+        def on_message(ws, message):
+            """接收消息"""
+            if isinstance(message, bytes):
+                # 二进制音频数据
+                audio_chunks.append(message)
+                print(f"[DEBUG] 收到音频数据块: {len(message)} 字节")
+            else:
+                # JSON事件消息
+                import json
+                try:
+                    msg = json.loads(message)
+                    event = msg.get("header", {}).get("event", "")
+                    print(f"[DEBUG] 收到事件: {event}")
+
+                    if event == "task-started":
+                        # 任务启动，发送continue-task指令
+                        print(f"[DEBUG] 任务已启动，发送文本: {text[:50]}...")
+                        continue_task_cmd = {
+                            "header": {
+                                "action": "continue-task",
+                                "task_id": task_id,
+                                "streaming": "duplex"
+                            },
+                            "payload": {
+                                "input": {
+                                    "text": text
+                                }
+                            }
+                        }
+                        ws.send_json(continue_task_cmd)
+
+                        # 发送finish-task指令
+                        time.sleep(0.1)
+                        finish_task_cmd = {
+                            "header": {
+                                "action": "finish-task",
+                                "task_id": task_id,
+                                "streaming": "duplex"
+                            },
+                            "payload": {
+                                "input": {}
+                            }
+                        }
+                        ws.send_json(finish_task_cmd)
+
+                    elif event == "task-finished":
+                        print(f"[DEBUG] 任务完成")
+                        audio_complete.set()
+
+                    elif event == "task-failed":
+                        error_msg = msg.get("header", {}).get("error_message", "未知错误")
+                        error_message[0] = error_msg
+                        print(f"[ERROR] 任务失败: {error_msg}")
+                        audio_complete.set()
+
+                except json.JSONDecodeError as e:
+                    print(f"[ERROR] JSON解析失败: {e}")
+
+        def on_error(ws, error):
+            """错误处理"""
+            print(f"[ERROR] WebSocket错误: {error}")
+            error_message[0] = str(error)
+            audio_complete.set()
+
+        def on_close(ws, close_status_code, close_msg):
+            """连接关闭"""
+            print(f"[DEBUG] WebSocket连接关闭: {close_status_code} - {close_msg}")
+            audio_complete.set()
+
+        # 创建WebSocket连接
+        header = {
+            "Authorization": f"bearer {self.api_key}",
+            "X-DashScope-DataInspection": "enable"
         }
 
-        print(f"[DEBUG] 提交通义千问TTS任务...")
-        response = self.post(
-            "/api/v1/services/audio/generation/generation",
-            data=data
-        )
-        result = self.parse_json_response(response)
+        print(f"[DEBUG] 连接WebSocket: {self.WS_URL}")
 
-        print(f"[DEBUG] TTS任务提交响应: {result}")
+        # 添加send_json方法到WebSocketApp
+        import json
+
+        ws = websocket.WebSocketApp(
+            self.WS_URL,
+            header=header,
+            on_open=on_open,
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close
+        )
+
+        # 原始send方法
+        original_send = ws.send
+
+        def send_json(obj):
+            """发送JSON数据"""
+            original_send(json.dumps(obj))
+
+        ws.send_json = send_json
+
+        # 在新线程中运行WebSocket
+        ws_thread = threading.Thread(target=ws.run_forever)
+        ws_thread.daemon = True
+        ws_thread.start()
+
+        # 等待音频生成完成（最多30秒）
+        if not audio_complete.wait(timeout=30):
+            ws.close()
+            raise ValueError("TTS生成超时")
+
+        ws.close()
 
         # 检查是否有错误
-        if "code" in result:
-            code = result["code"]
-            if code and code != "Success" and code != "":
-                error_msg = result.get("message", "未知错误")
-                raise ValueError(f"通义千问TTS API错误 [{code}]: {error_msg}")
+        if error_message[0]:
+            raise ValueError(f"TTS生成失败: {error_message[0]}")
+
+        # 合并音频数据
+        if not audio_chunks:
+            raise ValueError("未收到音频数据")
+
+        audio_data = b"".join(audio_chunks)
+        print(f"[DEBUG] 音频生成完成，总大小: {len(audio_data)} 字节")
+
+        return audio_data
 
         # 获取task_id
         if "output" not in result or "task_id" not in result["output"]:

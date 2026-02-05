@@ -785,27 +785,20 @@ class AudioGenerationStage(BaseStage):
     def _select_voice(self, scene: SceneData) -> str:
         """根据场景氛围选择音色（使用通义千问TTS音色）"""
         # 通义千问TTS支持的音色
-        # - Cherry: 活泼女声
-        # - Aijia: 温柔女声
-        # - Aida: 沉稳女声
-        # - Aimei: 甜美女声
-        # - Zhichu: 知性女声
-        # - Aixia: 活泼女声
-        # - Aibin: 沉稳男声
-        # - Aitong: 童声
-        # - Aiyue: 温暖女声
+        # cosyvoice-v1: longwan(男), longxiaochun(女), longxiaoxia(童)
+        # cosyvoice-v3-flash: longanyang(男), longyue(女)
         atmosphere = scene.atmosphere or "normal"
 
         voice_map = {
-            "tense": "Aida",          # 紧张场景用沉稳女声
-            "relaxed": "Aijia",       # 轻松场景用温柔女声
-            "mysterious": "Aibin",    # 神秘场景用沉稳男声
-            "happy": "Cherry",        # 开心场景用活泼女声
-            "sad": "Aiyue",           # 悲伤场景用温暖女声
-            "romantic": "Aimei",      # 浪漫场景用甜美女声
+            "tense": "longwan",          # 紧张场景用沉稳男声
+            "relaxed": "longxiaochun",   # 轻松场景用温柔女声
+            "mysterious": "longwan",     # 神秘场景用沉稳男声
+            "happy": "longxiaochun",     # 开心场景用温柔女声
+            "sad": "longyue",           # 悲伤场景用女声
+            "romantic": "longxiaochun", # 浪漫场景用温柔女声
         }
 
-        return voice_map.get(atmosphere, "Cherry")  # 默认用活泼女声
+        return voice_map.get(atmosphere, "longwan")  # 默认用男声
 
 
 class TextSubtitleStage(BaseStage):
