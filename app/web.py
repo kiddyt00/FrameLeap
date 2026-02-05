@@ -508,12 +508,12 @@ async def index():
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f8fafc;
+            background: #f1f5f9;
             color: #1e293b;
             min-height: 100vh;
         }
         .container {
-            max-width: 1400px;
+            max-width: 1800px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -546,14 +546,14 @@ async def index():
             border-radius: 12px;
             padding: 16px 20px;
             margin-bottom: 20px;
-            display: flex;
+            display: none;
             align-items: center;
             gap: 16px;
             animation: slideDown 0.3s ease;
             box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
         }
-        .config-warning.hidden {
-            display: none;
+        .config-warning.active {
+            display: flex;
         }
         .warning-content {
             display: flex;
@@ -598,7 +598,7 @@ async def index():
             padding: 30px;
             margin-bottom: 30px;
             border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 10px 40px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
         .input-group {
             margin-bottom: 15px;
@@ -612,7 +612,7 @@ async def index():
         }
         textarea {
             width: 100%;
-            height: 120px;
+            height: 100px;
             background: #f8fafc;
             border: 1px solid #cbd5e1;
             border-radius: 10px;
@@ -645,15 +645,10 @@ async def index():
             border: 1px solid #cbd5e1;
             cursor: pointer;
             font-size: 14px;
-            transition: all 0.2s;
-        }
-        select:hover {
-            border-color: #94a3b8;
         }
         select:focus {
             outline: none;
             border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
         .btn {
             padding: 12px 32px;
@@ -672,201 +667,299 @@ async def index():
         .btn-primary:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
-            background: linear-gradient(135deg, #1d4ed8, #2563eb);
-        }
-        .btn-primary:active {
-            transform: translateY(0);
         }
         .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
-            background: #94a3b8;
         }
 
         /* 进度条 */
         .progress-section {
             background: #ffffff;
-            border-radius: 16px;
-            padding: 25px;
-            margin-bottom: 30px;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
             display: none;
             border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
         .progress-section.active {
             display: block;
         }
         .progress-bar-container {
-            height: 10px;
+            height: 6px;
             background: #f1f5f9;
-            border-radius: 5px;
+            border-radius: 3px;
             overflow: hidden;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .progress-bar {
             height: 100%;
             background: linear-gradient(90deg, #2563eb, #3b82f6, #06b6d4);
-            border-radius: 5px;
+            border-radius: 3px;
             transition: width 0.4s ease;
             width: 0%;
-            position: relative;
-        }
-        .progress-bar::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-            animation: shimmer 1.5s infinite;
-        }
-        @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
         }
         .progress-text {
             text-align: center;
             color: #64748b;
             font-size: 14px;
-            font-weight: 500;
         }
 
-        /* 流程树 */
+        /* 瀑布流布局 */
         .flow-section {
             display: none;
         }
         .flow-section.active {
             display: block;
         }
-        .flow-title {
-            color: #1e293b;
-            font-size: 1.5em;
-            margin-bottom: 25px;
-            font-weight: 700;
+
+        .pipeline-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
         }
 
-        /* 阶段卡片 */
-        .stages-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 20px;
-        }
-        .stage-card {
+        /* 阶段行 */
+        .stage-row {
+            display: flex;
             background: #ffffff;
-            border-radius: 14px;
-            padding: 22px;
-            border: 2px solid #e2e8f0;
-            transition: all 0.25s;
-            cursor: pointer;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: all 0.3s;
         }
-        .stage-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        }
-        .stage-card.pending {
-            border-color: #cbd5e1;
-            background: #f8fafc;
-        }
-        .stage-card.running {
-            border-color: #f59e0b;
-            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
-            animation: pulse-card 2s infinite;
-        }
-        .stage-card.success {
-            border-color: #10b981;
-            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
-        }
-        .stage-card.failed {
-            border-color: #ef4444;
-            background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
-        }
-        @keyframes pulse-card {
-            0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1); }
-            50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.05); }
+        .stage-row:hover {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
 
-        .stage-header {
+        /* 左侧阶段信息 */
+        .stage-info {
+            flex-shrink: 0;
+            width: 280px;
+            padding: 20px;
+            border-right: 1px solid #e2e8f0;
+            background: #f8fafc;
             display: flex;
             align-items: center;
-            margin-bottom: 14px;
+            gap: 16px;
         }
-        .stage-icon {
-            font-size: 24px;
-            margin-right: 12px;
+        .stage-info-icon {
+            font-size: 36px;
+            flex-shrink: 0;
         }
-        .stage-name {
+        .stage-info-text {
+            flex: 1;
+            min-width: 0;
+        }
+        .stage-info-name {
             font-weight: 600;
             font-size: 16px;
-            flex: 1;
             color: #1e293b;
+            margin-bottom: 4px;
         }
-        .stage-status {
+        .stage-info-desc {
             font-size: 12px;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-        }
-        .status-pending { background: #f1f5f9; color: #64748b; }
-        .status-running { background: #fef3c7; color: #d97706; }
-        .status-success { background: #d1fae5; color: #059669; }
-        .status-failed { background: #fee2e2; color: #dc2626; }
-
-        .stage-description {
             color: #64748b;
-            font-size: 13px;
-            margin-bottom: 16px;
-            line-height: 1.6;
+            line-height: 1.4;
         }
 
-        .stage-details {
-            border-top: 1px solid #f1f5f9;
-            padding-top: 16px;
+        /* 状态指示器 */
+        .stage-status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-left: 8px;
         }
-        .detail-item {
+        .status-pending { background: #cbd5e1; }
+        .status-running {
+            background: #f59e0b;
+            animation: pulse 1.5s infinite;
+        }
+        .status-success { background: #10b981; }
+        .status-failed { background: #ef4444; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 右侧结果区域 */
+        .stage-results {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            min-height: 140px;
+            align-items: stretch;
+        }
+        .stage-results::-webkit-scrollbar {
+            height: 8px;
+        }
+        .stage-results::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .stage-results::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .stage-results::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            flex: 1;
             display: flex;
             align-items: center;
-            margin-bottom: 8px;
-            font-size: 13px;
-            color: #64748b;
-        }
-        .detail-item:before {
-            content: "→";
-            margin-right: 10px;
-            color: #2563eb;
-            font-weight: bold;
-        }
-        .detail-item.done {
-            color: #059669;
-        }
-        .detail-item.done:before {
-            content: "✓";
-            color: #059669;
-        }
-
-        .stage-outputs {
-            margin-top: 14px;
-            padding-top: 14px;
-            border-top: 1px solid #f1f5f9;
-        }
-        .output-tag {
-            display: inline-block;
-            background: #eff6ff;
-            color: #2563eb;
-            padding: 5px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 500;
-            margin-right: 8px;
-            margin-bottom: 8px;
-        }
-
-        .stage-time {
-            margin-top: 14px;
-            font-size: 12px;
+            justify-content: center;
             color: #94a3b8;
+            font-size: 14px;
+        }
+
+        /* 结果卡片 */
+        .result-card {
+            flex-shrink: 0;
+            width: 320px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        .result-card:hover {
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .result-header {
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .result-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+        }
+        .result-time {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+        .result-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .result-btn {
+            padding: 4px 10px;
+            font-size: 11px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .result-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .result-content {
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* 结果内容样式 */
+        .result-text {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #334155;
+        }
+        .result-text strong {
+            color: #2563eb;
+            font-weight: 600;
+        }
+
+        /* 场景列表 */
+        .scene-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .scene-item {
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .scene-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #2563eb;
+            margin-bottom: 4px;
+        }
+        .scene-desc {
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.4;
+        }
+
+        /* 角色列表 */
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .char-item {
+            padding: 10px;
+            background: #fef3c7;
+            border-radius: 8px;
+            border: 1px solid #fcd34d;
+        }
+        .char-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #92400e;
+            margin-bottom: 4px;
+        }
+        .char-desc {
+            font-size: 11px;
+            color: #b45309;
+        }
+
+        /* 图像网格 */
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .image-item {
+            aspect-ratio: 16/10;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            background: #f1f5f9;
+        }
+        .image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .image-item.loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            font-size: 12px;
         }
 
         /* 详情弹窗 */
@@ -888,80 +981,49 @@ async def index():
         }
         .modal-content {
             background: #ffffff;
-            border-radius: 20px;
-            padding: 35px;
-            max-width: 600px;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 800px;
             width: 90%;
-            max-height: 80vh;
+            max-height: 85vh;
             overflow-y: auto;
             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
         }
         .modal-title {
             color: #1e293b;
-            font-size: 1.5em;
-            margin-bottom: 25px;
+            font-size: 1.3em;
+            margin-bottom: 20px;
             font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
         .modal-close {
-            float: right;
+            margin-left: auto;
             cursor: pointer;
-            font-size: 28px;
+            font-size: 24px;
             color: #94a3b8;
             transition: color 0.2s;
         }
         .modal-close:hover {
             color: #475569;
         }
-        .detail-row {
-            display: flex;
-            margin-bottom: 18px;
-        }
-        .detail-label {
-            width: 120px;
-            color: #64748b;
-            font-weight: 500;
-        }
-        .detail-value {
-            flex: 1;
-            color: #1e293b;
-        }
-        .prompt-box {
-            background: #f8fafc;
-            padding: 18px;
-            border-radius: 10px;
-            margin: 18px 0;
-            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-            font-size: 13px;
-            line-height: 1.7;
-            max-height: 200px;
-            overflow-y: auto;
-            color: #334155;
-            border: 1px solid #e2e8f0;
-        }
-        .prompt-label {
-            color: #2563eb;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        /* 树形连接线 */
-        .tree-connector {
-            display: none;
-        }
 
         /* 响应式 */
         @media (max-width: 768px) {
-            .stages-container {
-                grid-template-columns: 1fr;
-            }
-            .controls {
+            .stage-row {
                 flex-direction: column;
             }
-            select, .btn {
+            .stage-info {
                 width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
             }
-            .header {
-                padding: 20px 0;
+            .stage-results {
+                flex-direction: column;
+            }
+            .result-card {
+                width: 100%;
             }
             .header h1 {
                 font-size: 1.8em;
@@ -977,7 +1039,7 @@ async def index():
         </div>
 
         <!-- LLM配置警告 -->
-        <div class="config-warning" id="configWarning" style="display: none;">
+        <div class="config-warning" id="configWarning">
             <div class="warning-content">
                 <span class="warning-icon">⚠️</span>
                 <div class="warning-text">
@@ -1026,18 +1088,19 @@ async def index():
             <div class="progress-text" id="progressText">准备中...</div>
         </div>
 
-        <!-- 流程展示区域 -->
+        <!-- 瀑布流流程展示区域 -->
         <div class="flow-section" id="flowSection">
-            <h2 class="flow-title">📊 生成流程</h2>
-            <div class="stages-container" id="stagesContainer"></div>
+            <div class="pipeline-container" id="pipelineContainer"></div>
         </div>
     </div>
 
     <!-- 详情弹窗 -->
     <div class="modal" id="detailModal">
         <div class="modal-content">
-            <span class="modal-close" onclick="closeModal()">&times;</span>
-            <h2 class="modal-title" id="modalTitle">阶段详情</h2>
+            <div class="modal-title">
+                <span id="modalTitle">阶段详情</span>
+                <span class="modal-close" onclick="closeModal()">&times;</span>
+            </div>
             <div id="modalBody"></div>
         </div>
     </div>
@@ -1047,12 +1110,15 @@ async def index():
         let currentSessionId = null;
         let ws = null;
         const STAGE_DEFINITIONS = __STAGE_DEFINITIONS__;
-        const stageOutputs = {};  // 存储每个阶段的输出数据
+        const stageResults = {};  // 存储每个阶段的所有结果（支持多次生成）
+
+        // 阶段顺序
+        const STAGE_ORDER = ['input', 'script', 'scene_desc', 'image'];
 
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
             checkLLMConfig();
-            renderInitialStages();
+            renderInitialPipeline();
         });
 
         // 检查LLM配置
@@ -1070,65 +1136,47 @@ async def index():
 
         // 显示警告
         function showWarning() {
-            document.getElementById('configWarning').style.display = 'flex';
+            document.getElementById('configWarning').classList.add('active');
         }
 
         // 忽略警告
         function dismissWarning() {
-            document.getElementById('configWarning').classList.add('hidden');
+            document.getElementById('configWarning').classList.remove('active');
         }
 
-        // 渲染初始阶段卡片
-        function renderInitialStages() {
-            const container = document.getElementById('stagesContainer');
+        // 渲染初始流水线
+        function renderInitialPipeline() {
+            const container = document.getElementById('pipelineContainer');
             container.innerHTML = '';
 
-            for (const [stageId, stageDef] of Object.entries(STAGE_DEFINITIONS)) {
-                const card = createStageCard(stageId, stageDef, 'pending');
-                container.appendChild(card);
+            for (const stageId of STAGE_ORDER) {
+                const stageDef = STAGE_DEFINITIONS[stageId];
+                const row = createStageRow(stageId, stageDef);
+                container.appendChild(row);
             }
         }
 
-        // 创建阶段卡片
-        function createStageCard(stageId, stageDef, status, output = null) {
-            const card = document.createElement('div');
-            card.className = `stage-card ${status}`;
-            card.id = `stage-${stageId}`;
-            card.onclick = () => showStageDetail(stageId);
+        // 创建阶段行
+        function createStageRow(stageId, stageDef) {
+            const row = document.createElement('div');
+            row.className = 'stage-row';
+            row.id = `stage-row-${stageId}`;
 
-            const statusText = {
-                'pending': '等待中',
-                'running': '处理中',
-                'success': '完成',
-                'failed': '失败'
-            }[status] || status;
-
-            let detailsHtml = stageDef.details.map(detail =>
-                `<div class="detail-item">${detail}</div>`
-            ).join('');
-
-            let outputsHtml = '';
-            if (stageDef.outputs) {
-                outputsHtml = '<div class="stage-outputs">' +
-                    stageDef.outputs.map(o => `<span class="output-tag">${o}</span>`).join('') +
-                    '</div>';
-            }
-
-            card.innerHTML = `
-                <div class="stage-header">
-                    <span class="stage-icon">${stageDef.icon}</span>
-                    <span class="stage-name">${stageDef.name}</span>
-                    <span class="stage-status status-${status}">${statusText}</span>
+            row.innerHTML = `
+                <div class="stage-info">
+                    <span class="stage-info-icon">${stageDef.icon}</span>
+                    <div class="stage-info-text">
+                        <div class="stage-info-name">${stageDef.name}</div>
+                        <div class="stage-info-desc">${stageDef.description}</div>
+                    </div>
+                    <div class="stage-status-indicator status-pending" id="status-${stageId}"></div>
                 </div>
-                <div class="stage-description">${stageDef.description}</div>
-                <div class="stage-details" id="details-${stageId}">
-                    ${detailsHtml}
+                <div class="stage-results" id="results-${stageId}">
+                    <div class="empty-state">等待中...</div>
                 </div>
-                ${outputsHtml}
-                <div class="stage-time" id="time-${stageId}"></div>
             `;
 
-            return card;
+            return row;
         }
 
         // 开始生成
@@ -1164,6 +1212,9 @@ async def index():
 
                 currentSessionId = data.session_id;
 
+                // 重置流水线
+                renderInitialPipeline();
+
                 // 显示进度和流程区域
                 document.getElementById('progressSection').classList.add('active');
                 document.getElementById('flowSection').classList.add('active');
@@ -1187,7 +1238,6 @@ async def index():
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
-                // 订阅当前会话
                 if (currentSessionId) {
                     ws.send(JSON.stringify({
                         type: 'subscribe',
@@ -1203,7 +1253,6 @@ async def index():
 
             ws.onclose = () => {
                 console.log('WebSocket disconnected');
-                // 5秒后重连
                 setTimeout(() => {
                     if (currentSessionId) {
                         connectWebSocket();
@@ -1220,26 +1269,22 @@ async def index():
         function handleWebSocketMessage(data) {
             console.log('收到消息:', data);
 
-            if (data.type === 'session_init') {
-                // 初始化会话状态
-                for (const [stageId, nodeData] of Object.entries(data.nodes || {})) {
-                    updateStage(stageId, nodeData.status, nodeData.output, nodeData.duration);
-                }
-                updateProgress(data.progress, '准备就绪');
+            if (data.type === 'stage_update') {
+                updateStageStatus(data.stage_id, data.status);
 
-            } else if (data.type === 'stage_update') {
-                updateStage(data.stage_id, data.status, data.output, data.duration);
+                if (data.status === 'success' && data.output) {
+                    addResultCard(data.stage_id, data.output);
+                }
 
                 // 计算整体进度
-                const stageOrder = ['input', 'script', 'scene_desc', 'image'];
                 let completed = 0;
-                stageOrder.forEach(id => {
-                    const card = document.getElementById(`stage-${id}`);
-                    if (card && card.classList.contains('success')) {
+                STAGE_ORDER.forEach(id => {
+                    const indicator = document.getElementById(`status-${id}`);
+                    if (indicator && indicator.classList.contains('status-success')) {
                         completed++;
                     }
                 });
-                const progress = completed / stageOrder.length;
+                const progress = completed / STAGE_ORDER.length;
                 const stageNames = {
                     'input': '输入处理',
                     'script': '剧本生成',
@@ -1247,9 +1292,6 @@ async def index():
                     'image': '图像生成',
                 };
                 updateProgress(progress, stageNames[data.stage_id] || '处理中');
-
-            } else if (data.type === 'progress') {
-                updateProgress(data.progress, data.message);
 
             } else if (data.type === 'complete') {
                 generationComplete(data.output_path);
@@ -1260,42 +1302,127 @@ async def index():
         }
 
         // 更新阶段状态
-        function updateStage(stageId, status, output = null, duration = null) {
-            const stageDef = STAGE_DEFINITIONS[stageId];
-            if (!stageDef) return;
+        function updateStageStatus(stageId, status) {
+            const indicator = document.getElementById(`status-${stageId}`);
+            if (indicator) {
+                indicator.className = `stage-status-indicator status-${status}`;
+            }
+        }
 
-            // 保存 output 数据
-            if (output) {
-                stageOutputs[stageId] = output;
+        // 添加结果卡片
+        function addResultCard(stageId, output) {
+            const resultsContainer = document.getElementById(`results-${stageId}`);
+            if (!resultsContainer) return;
+
+            // 移除空状态
+            const emptyState = resultsContainer.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
             }
 
-            const container = document.getElementById('stagesContainer');
-            const oldCard = document.getElementById(`stage-${stageId}`);
+            // 存储结果
+            if (!stageResults[stageId]) {
+                stageResults[stageId] = [];
+            }
+            const resultIndex = stageResults[stageId].length;
+            stageResults[stageId].push(output);
 
-            const newCard = createStageCard(stageId, stageDef, status, output);
+            // 创建结果卡片
+            const card = createResultCard(stageId, output, resultIndex);
+            resultsContainer.appendChild(card);
 
-            if (oldCard) {
-                oldCard.replaceWith(newCard);
-            } else {
-                container.appendChild(newCard);
+            // 滚动到最新结果
+            resultsContainer.scrollLeft = resultsContainer.scrollWidth;
+        }
+
+        // 创建结果卡片
+        function createResultCard(stageId, output, index) {
+            const card = document.createElement('div');
+            card.className = 'result-card';
+
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+            let content = '';
+
+            switch(stageId) {
+                case 'input':
+                    content = `
+                        <div class="result-text">
+                            <div><strong>输入文本:</strong> ${output.input_text || ''}</div>
+                            <div style="margin-top:8px;"><strong>风格:</strong> ${output.style || 'anime'}</div>
+                            <div><strong>分辨率:</strong> ${output.resolution || '1080p'}</div>
+                        </div>
+                    `;
+                    break;
+
+                case 'script':
+                    content = `
+                        <div class="result-text">
+                            <div style="margin-bottom:8px;"><strong>标题:</strong> ${output.title || '未命名'}</div>
+                            <div style="margin-bottom:8px;"><strong>类型:</strong> ${output.story_type || '未知'}</div>
+                            <div style="margin-bottom:8px;"><strong>主题:</strong> ${output.theme || '未知'}</div>
+                            <div style="margin-bottom:12px;"><strong>场景数:</strong> ${output.scene_count || 0} | <strong>角色数:</strong> ${output.character_count || 0}</div>
+                        </div>
+                    `;
+                    if (output.scenes && output.scenes.length > 0) {
+                        content += `<div class="scene-list">`;
+                        output.scenes.slice(0, 3).forEach(scene => {
+                            content += `
+                                <div class="scene-item">
+                                    <div class="scene-title">场景 ${scene.order + 1}: ${scene.title}</div>
+                                    <div class="scene-desc">${(scene.description || '').substring(0, 80)}...</div>
+                                </div>
+                            `;
+                        });
+                        if (output.scenes.length > 3) {
+                            content += `<div style="text-align:center;color:#94a3b8;font-size:12px;padding:8px;">...还有 ${output.scenes.length - 3} 个场景</div>`;
+                        }
+                        content += `</div>`;
+                    }
+                    break;
+
+                case 'scene_desc':
+                    content = `
+                        <div class="result-text">
+                            <div><strong>已准备场景描述:</strong> ${output.description_count || 0} 个场景</div>
+                        </div>
+                    `;
+                    break;
+
+                case 'image':
+                    if (output.image_paths && output.image_paths.length > 0) {
+                        content = `<div class="image-grid">`;
+                        output.image_paths.slice(0, 4).forEach((path, idx) => {
+                            const fileName = path.split(/[\\/]/).pop();
+                            const imageUrl = '/temp/' + fileName;
+                            content += `
+                                <div class="image-item">
+                                    <img src="${imageUrl}" alt="场景 ${idx + 1}" onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:11px;\\'>加载失败</div>'">
+                                </div>
+                            `;
+                        });
+                        if (output.image_paths.length > 4) {
+                            content += `<div style="grid-column:1/-1;text-align:center;color:#94a3b8;font-size:12px;padding:8px;">...还有 ${output.image_paths.length - 4} 张图像</div>`;
+                        }
+                        content += `</div>`;
+                    } else {
+                        content = `<div class="result-text">无图像生成</div>`;
+                    }
+                    break;
             }
 
-            // 更新时间
-            if (duration) {
-                const timeEl = document.getElementById(`time-${stageId}`);
-                if (timeEl) {
-                    timeEl.textContent = `耗时: ${duration.toFixed(2)}秒`;
-                }
-            }
+            card.innerHTML = `
+                <div class="result-header">
+                    <span class="result-title">#${index + 1}</span>
+                    <span class="result-time">${timeStr}</span>
+                </div>
+                <div class="result-content">
+                    ${content}
+                </div>
+            `;
 
-            // 如果完成，标记详情项
-            if (status === 'success') {
-                const detailsEl = document.getElementById(`details-${stageId}`);
-                if (detailsEl) {
-                    const items = detailsEl.querySelectorAll('.detail-item');
-                    items.forEach(item => item.classList.add('done'));
-                }
-            }
+            return card;
         }
 
         // 更新进度
@@ -1312,24 +1439,7 @@ async def index():
             const btn = document.getElementById('generateBtn');
             btn.disabled = false;
             btn.textContent = '🚀 开始生成';
-
             updateProgress(1, '生成完成！');
-
-            // 显示完成消息
-            const container = document.getElementById('stagesContainer');
-            const completeCard = document.createElement('div');
-            completeCard.className = 'stage-card success';
-            completeCard.innerHTML = `
-                <div class="stage-header">
-                    <span class="stage-icon">🎉</span>
-                    <span class="stage-name">生成完成</span>
-                </div>
-                <div class="stage-description">
-                    视频已生成完成！<br>
-                    <a href="/output/${encodeURIComponent(outputPath)}" download style="color: #00d9ff;">点击下载视频</a>
-                </div>
-            `;
-            container.appendChild(completeCard);
         }
 
         // 生成错误
@@ -1337,190 +1447,7 @@ async def index():
             const btn = document.getElementById('generateBtn');
             btn.disabled = false;
             btn.textContent = '🚀 开始生成';
-
             alert('生成失败: ' + error);
-        }
-
-        // 显示阶段详情
-        function showStageDetail(stageId) {
-            const stageDef = STAGE_DEFINITIONS[stageId];
-            if (!stageDef) return;
-
-            const modal = document.getElementById('detailModal');
-            const title = document.getElementById('modalTitle');
-            const body = document.getElementById('modalBody');
-
-            title.innerHTML = `${stageDef.icon} ${stageDef.name}`;
-
-            let html = `
-                <div class="detail-row">
-                    <span class="detail-label">描述:</span>
-                    <span class="detail-value">${stageDef.description}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">处理步骤:</span>
-                </div>
-            `;
-
-            stageDef.details.forEach((detail, i) => {
-                html += `<div class="detail-item" style="margin-left: 120px;">${detail}</div>`;
-            });
-
-            if (stageDef.outputs) {
-                html += `
-                    <div class="detail-row" style="margin-top: 15px;">
-                        <span class="detail-label">输出:</span>
-                    </div>
-                `;
-                stageDef.outputs.forEach(output => {
-                    html += `<span class="output-tag">${output}</span>`;
-                });
-            }
-
-            // 特殊处理画面描述阶段 - 显示提示词示例
-            if (stageId === 'scene_desc') {
-                html += `
-                    <div style="margin-top: 20px;">
-                        <div class="prompt-label">📝 正向提示词示例:</div>
-                        <div class="prompt-box">
-一个少年在雨夜中遇到了神秘少女, anime风格, masterpiece, best quality, highly detailed
-                        </div>
-                        <div class="prompt-label">🚫 负面提示词:</div>
-                        <div class="prompt-box">
-low quality, blurry, ugly, deformed, disfigured, bad anatomy, extra limbs, missing limbs, watermark, text
-                        </div>
-                    </div>
-                `;
-            }
-
-            // 特殊处理图像生成阶段 - 显示生成的图像
-            if (stageId === 'image' && stageOutputs['image']) {
-                const output = stageOutputs['image'];
-                if (output.image_paths && output.image_paths.length > 0) {
-                    html += `
-                        <div style="margin-top: 20px;">
-                            <div class="prompt-label">🖼️ 生成的场景图像 (${output.image_paths.length}):</div>
-                            <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; max-height: 500px; overflow-y: auto;">
-                    `;
-                    output.image_paths.forEach((path, idx) => {
-                        // 将文件路径转换为URL
-                        const fileName = path.split(/[\\/]/).pop();
-                        const imageUrl = '/temp/' + fileName;
-                        console.log(`[DEBUG] 图片 ${idx + 1}:`, { path, fileName, imageUrl });
-                        html += `
-                            <div style="border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: white;">
-                                <img src="${imageUrl}" alt="场景 ${idx + 1}" style="width: 100%; height: 200px; object-fit: cover; display: block;" onload="console.log('图片加载成功:', '${imageUrl}')" onerror="console.error('图片加载失败:', '${imageUrl}'); this.parentElement.innerHTML='<div style=\\'padding:20px;text-align:center;color:#ef4444;\\'>图像加载失败<br><small>URL: ${imageUrl}</small></div>'">
-                                <div style="padding: 12px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
-                                    <div style="font-weight: bold; color: #2563eb; margin-bottom: 4px;">场景 ${idx + 1}</div>
-                                    <div style="font-size: 12px; color: #64748b;">${fileName}</div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += `
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    html += `
-                        <div style="margin-top: 20px;">
-                            <div class="prompt-label">🖼️ 生成的图像:</div>
-                            <div style="margin-top: 10px; padding: 18px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
-                                无图像生成
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-
-            // 特殊处理输入阶段 - 显示输入参数
-            if (stageId === 'input' && stageOutputs['input']) {
-                const output = stageOutputs['input'];
-                html += `
-                    <div style="margin-top: 20px;">
-                        <div class="prompt-label">📝 输入参数:</div>
-                        <div style="margin-top: 10px; padding: 18px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
-                            <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">输入文本:</strong> ${output.input_text}</div>
-                            <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">风格:</strong> ${output.style}</div>
-                            <div><strong style="color: #2563eb;">分辨率:</strong> ${output.resolution}</div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            // 特殊处理剧本生成阶段 - 显示场景和角色详情
-            if (stageId === 'script') {
-                // 显示生成结果
-                if (stageOutputs['script']) {
-                    const output = stageOutputs['script'];
-                    html += `
-                        <div style="margin-top: 20px;">
-                            <div class="prompt-label">📊 剧本信息:</div>
-                            <div style="margin-top: 10px; padding: 18px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
-                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">标题:</strong> ${output.title || '未命名'}</div>
-                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">故事类型:</strong> ${output.story_type || '未知'}</div>
-                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">主题:</strong> ${output.theme || '未知'}</div>
-                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">前提:</strong> ${output.premise || '无'}</div>
-                                <div style="margin-bottom: 12px;"><strong style="color: #2563eb;">场景数量:</strong> ${output.scene_count || 0}</div>
-                                <div><strong style="color: #2563eb;">角色数量:</strong> ${output.character_count || 0}</div>
-                            </div>
-                        </div>
-                    `;
-
-                    // 显示场景详情
-                    if (output.scenes && output.scenes.length > 0) {
-                        html += `
-                            <div style="margin-top: 20px;">
-                                <div class="prompt-label">🎬 场景列表 (${output.scenes.length}):</div>
-                                <div style="margin-top: 10px; max-height: 400px; overflow-y: auto;">
-                        `;
-                        output.scenes.forEach((scene, idx) => {
-                            html += `
-                                <div style="margin-bottom: 16px; padding: 16px; background: ${idx % 2 === 0 ? '#f8fafc' : '#ffffff'}; border-radius: 10px; border: 1px solid #e2e8f0;">
-                                    <div style="margin-bottom: 8px; color: #2563eb; font-weight: bold;">场景 ${scene.order + 1}: ${scene.title}</div>
-                                    <div style="margin-bottom: 8px; color: #64748b; font-size: 13px;">氛围: ${scene.atmosphere || '普通'}</div>
-                                    <div style="color: #334155; line-height: 1.6;">${scene.description || '暂无描述'}</div>
-                                </div>
-                            `;
-                        });
-                        html += `
-                                </div>
-                            </div>
-                        `;
-                    }
-
-                    // 显示角色详情
-                    if (output.characters && output.characters.length > 0) {
-                        html += `
-                            <div style="margin-top: 20px;">
-                                <div class="prompt-label">👥 角色列表 (${output.characters.length}):</div>
-                                <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto;">
-                        `;
-                        output.characters.forEach((char, idx) => {
-                            html += `
-                                <div style="padding: 16px; background: ${idx % 2 === 0 ? '#fef3c7' : '#fffbeb'}; border-radius: 10px; border: 1px solid #fcd34d;">
-                                    <div style="margin-bottom: 8px; color: #92400e; font-weight: bold; font-size: 15px;">${char.name}</div>
-                                    <div style="margin-bottom: 6px; color: #b45309; font-size: 12px;">类型: ${char.type || '未知'}</div>
-                                    <div style="margin-bottom: 6px; color: #b45309; font-size: 12px;">年龄: ${char.age || '未知'} | 性别: ${char.gender || '未知'}</div>
-                                    <div style="margin-bottom: 6px; color: #78350f; font-size: 13px;">${char.description || '暂无描述'}</div>
-                                    ${char.personality && char.personality.length > 0 ? `
-                                        <div style="color: #92400e; font-size: 12px;">
-                                            <strong>性格:</strong> ${char.personality.join(', ')}
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            `;
-                        });
-                        html += `
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
-            }
-
-            body.innerHTML = html;
-            modal.classList.add('active');
         }
 
         // 关闭弹窗
