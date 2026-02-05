@@ -185,7 +185,8 @@ class APIConfig:
         self.image_base_url = image_base_url or os.getenv("FRAMELEAP_IMAGE_BASE_URL")
 
         self.tts_provider = os.getenv("FRAMELEAP_TTS_PROVIDER", tts_provider)
-        self.tts_api_key = tts_api_key or os.getenv("FRAMELEAP_TTS_API_KEY")
+        # TTS API密钥默认复用LLM的API密钥（因为同一服务商通常共用密钥）
+        self.tts_api_key = tts_api_key or os.getenv("FRAMELEAP_TTS_API_KEY") or self.llm_api_key
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典（隐藏敏感信息）"""
