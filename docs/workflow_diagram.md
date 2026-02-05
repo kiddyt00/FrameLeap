@@ -10,7 +10,7 @@ flowchart TD
 
     subgraph Story["📖 阶段2: 故事创作层"]
         B1[2.1<br/>剧本生成]
-        B2[2.2<br/>画面描述]
+        B2[2.2<br/>画面描述+运镜规划]
         B3[2.3<br/>图像生成]
         B4[2.4<br/>音频生成]
     end
@@ -52,7 +52,7 @@ flowchart TD
 |-----|-------|------|------|
 | **阶段1** | 1.0 | 输入处理 | ✅ 已实现 |
 | **阶段2** | 2.1 | 剧本生成 | ✅ 已实现 |
-| | 2.2 | 画面描述生成 | ✅ 已实现 |
+| | 2.2 | 画面描述+运镜规划 | ✅ 已实现 |
 | | 2.3 | 图像生成 | ✅ 已实现 |
 | | 2.4 | 音频生成 | 🚧 待实现 |
 | **阶段3** | 3.1 | 视频生成 | 🚧 待实现 |
@@ -110,14 +110,14 @@ Scene {
 
 ---
 
-### 2.2 画面描述生成 (Scene Description & Prompt Engineering)
+### 2.2 画面描述与运镜规划 (Scene Description & Camera Planning)
 
 | 项目 | 内容 |
 |-----|------|
-| **功能** | 将剧本转化为AI绘画提示词和视频提示词 |
+| **功能** | 将剧本转化为AI绘画提示词、视频提示词和运镜方案 |
 | **输入** | `Script` (来自2.1) + `StyleConfig` (来自1.0) |
-| **输出** | `ScenePrompts[]` (场景提示词列表) |
-| **核心技术** | LLM + Prompt工程 |
+| **输出** | `ScenePrompts[]` + `CameraShots[]` |
+| **核心技术** | LLM + Prompt工程 + 运镜规划算法 |
 | **状态** | ✅ 已实现 |
 
 **输出数据结构**:
@@ -133,7 +133,35 @@ ScenePrompt {
     style_tags: List[str]   # 风格标签
     quality_tags: List[str] # 质量标签
 }
+
+CameraShot {
+    scene_id: str           # 场景ID
+    shot_size: ShotSize     # 景别: extreme_long/long/full/medium/close/extreme_close
+    camera_movement: CameraMovement  # 运镜: static/pan/tilt/zoom/dolly/track/arc
+    movement_speed: float   # 运镜速度 0.1-10
+    angle: float            # 拍摄角度（度） 负数俯视 正数仰视
+    focus_point: Vector2    # 焦点位置（归一化0-1）
+    transition_in: TransitionType   # 入场转场
+    transition_out: TransitionType  # 出场转场
+}
 ```
+
+**运镜规划规则**:
+
+| 场景位置 | 景别 | 运镜 | 说明 |
+|---------|------|------|------|
+| 开场 (0%) | LONG (远景) | static/pan_right | 建立环境，缓慢展示 |
+| 发展 (25-50%) | MEDIUM (中景) | dolly_in/track_left | 跟随角色，推进情节 |
+| 高潮 (75%) | CLOSE (近景) | zoom_in/arc | 情感集中，增强张力 |
+| 结尾 (100%) | MEDIUM (中景) | dolly_out | 平缓收尾 |
+
+**子任务**:
+| 子任务 | 说明 | 状态 |
+|-------|------|------|
+| 2.2.1 | 生成图像/视频提示词 | ✅ 已实现 |
+| 2.2.2 | 规划景别 (shot_size) | ✅ 已实现 |
+| 2.2.3 | 规划运镜 (camera_movement) | 🚧 待实现 |
+| 2.2.4 | 规划转场 (transition) | 🚧 待实现 |
 
 ---
 
@@ -206,7 +234,7 @@ AudioTrack {
 | 项目 | 内容 |
 |-----|------|
 | **功能** | 使用通义万相wan2.6-i2v将图片+音频生成视频 |
-| **输入** | `SceneImages[]` (来自2.3) + `AudioTracks[]` (来自2.4) + `ScenePrompts[]` (来自2.2) |
+| **输入** | `SceneImages[]` (来自2.3) + `AudioTracks[]` (来自2.4) + `CameraShots[]` (来自2.2) |
 | **输出** | `SceneVideos[]` (视频片段URL) |
 | **核心技术** | 通义万相 wan2.6-i2v API |
 | **状态** | 🚧 待实现 |
@@ -234,6 +262,13 @@ curl --location 'https://dashscope.aliyuncs.com/api/v1/services/aigc/video-gener
 }'
 ```
 
+**运镜参数映射**:
+| CameraShot | API参数 | 说明 |
+|-----------|---------|------|
+| shot_size | prompt中描述 | 在提示词中描述景别 |
+| camera_movement | shot_type | `static`→single, 其他→multi |
+| angle | prompt中描述 | "high angle view" / "low angle view" |
+
 **输出数据结构**:
 ```python
 SceneVideo {
@@ -249,7 +284,7 @@ SceneVideo {
 **子任务**:
 | 子任务 | 说明 | 状态 |
 |-------|------|------|
-| 3.1.1 | 构建API请求参数 | 🚧 待实现 |
+| 3.1.1 | 根据运镜方案构建API参数 | 🚧 待实现 |
 | 3.1.2 | 调用wan2.6-i2v API | 🚧 待实现 |
 | 3.1.3 | 轮询任务状态 | 🚧 待实现 |
 | 3.1.4 | 下载视频到本地 | 🚧 待实现 |
@@ -261,19 +296,30 @@ SceneVideo {
 | 项目 | 内容 |
 |-----|------|
 | **功能** | 将多个场景视频拼接成完整视频 |
-| **输入** | `SceneVideos[]` (来自3.1) + `Script` (场景顺序，来自2.1) |
+| **输入** | `SceneVideos[]` (来自3.1) + `CameraShots[]` (转场信息，来自2.2) |
 | **输出** | `FinalVideo` (完整视频文件) |
 | **核心技术** | FFmpeg |
 | **状态** | 🚧 待实现 |
 
 **技术实现**:
 ```bash
-# 使用FFmpeg拼接视频
+# 简单拼接（无转场）
 ffmpeg -f concat -safe 0 -i file_list.txt -c copy output.mp4
 
-# 或使用滤镜转场拼接
-ffmpeg -i scene1.mp4 -i scene2.mp4 -filter_complex "[0:v][1:v]xfade=transition=fade:duration=1:offset=5" output.mp4
+# 带转场拼接
+ffmpeg -i scene1.mp4 -i scene2.mp4 \
+    -filter_complex "[0:v][1:v]xfade=transition=fade:duration=1:offset=5" \
+    output.mp4
 ```
+
+**转场效果映射**:
+| TransitionType | FFmpeg xfade transition |
+|---------------|----------------------|
+| CUT | cut |
+| FADE_IN / FADE_OUT / CROSS_FADE | fade |
+| WIPE_LEFT / WIPE_RIGHT | wipeleft / wiperight |
+| WIPE_UP / WIPE_DOWN | wipeup / wipedown |
+| ZOOM_IN / ZOOM_OUT | zoomin / zoomout |
 
 **输出数据结构**:
 ```python
@@ -289,7 +335,7 @@ FinalVideo {
 **子任务**:
 | 子任务 | 说明 | 状态 |
 |-------|------|------|
-| 3.2.1 | 生成拼接文件列表 | 🚧 待实现 |
+| 3.2.1 | 根据转场方案生成拼接命令 | 🚧 待实现 |
 | 3.2.2 | FFmpeg拼接处理 | 🚧 待实现 |
 | 3.2.3 | 可选: 添加转场效果 | 🚧 待实现 |
 
@@ -355,9 +401,26 @@ graph LR
     S2_2 --> S3_1
     S2_3 --> S3_1
     S2_4 --> S3_1
-    S2_1 -.-> S3_2
+    S2_2 -.-> S3_2
     S3_1 --> S3_2
     S3_2 --> S4_0
+```
+
+### 运镜数据流向
+
+```
+2.2 画面描述+运镜规划
+        │
+        ├─── CameraShot.shot_size ─────┐
+        ├─── CameraShot.camera_movement ┤
+        ├─── CameraShot.angle ──────────┤
+        └─── CameraShot.transition ──────┤
+                                        │
+                                        ▼
+                              3.1 视频生成 (构建API参数)
+                                        │
+                                        ▼
+                              3.2 视频拼接 (应用转场)
 ```
 
 ### 重新生成依赖规则
@@ -365,7 +428,7 @@ graph LR
 | 重新生成阶段 | 需要重新执行 | 说明 |
 |-------------|-------------|------|
 | 2.1 剧本 | 2.2, 2.3, 2.4, 3.1, 3.2 | 剧本改变，后续全流程需重新执行 |
-| 2.2 画面 | 2.3, 3.1, 3.2 | 提示词改变，图像和视频需重新生成 |
+| 2.2 画面+运镜 | 2.3, 3.1, 3.2 | 提示词/运镜改变，图像和视频需重新生成 |
 | 2.3 图像 | 3.1, 3.2 | 图像改变，视频需重新生成 |
 | 2.4 音频 | 3.1, 3.2 | 音频改变，视频需重新生成 |
 | 3.1 视频 | 3.2 | 视频片段改变，需重新拼接 |
@@ -378,12 +441,117 @@ graph LR
 |-----|-------|------|---------|---------|
 | 1 | 1.0 | 输入处理 | - | - |
 | 2 | 2.1 | 剧本生成 | 千问 / Qwen / DeepSeek | Llama / Local |
-| | 2.2 | 画面描述 | 同上 | 同上 |
+| | 2.2 | 画面+运镜 | 同上 | 同上 |
 | | 2.3 | 图像生成 | 通义万相 / Flux | SDXL / SD3 |
 | | 2.4 | 音频生成 | Azure / Fish / Suno | VITS / GPT-SoVITS |
 | 3 | 3.1 | 视频生成 | **通义万相 wan2.6-i2v** | - |
 | | 3.2 | 视频拼接 | - | FFmpeg |
 | 4 | 4.0 | 输出交付 | - | - |
+
+---
+
+## 运镜规划算法
+
+### 景别选择逻辑
+
+```python
+def select_shot_size(position: float, total_scenes: int) -> ShotSize:
+    """根据场景位置选择景别
+
+    Args:
+        position: 场景位置比例 (0.0 - 1.0)
+        total_scenes: 总场景数
+
+    Returns:
+        ShotSize: 景别枚举
+    """
+    if position < 0.1:
+        return ShotSize.EXTREME_LONG  # 大远景开场
+    elif position < 0.25:
+        return ShotSize.LONG  # 远景建立环境
+    elif position > 0.9:
+        return ShotSize.MEDIUM  # 中景收尾
+    elif position > 0.75:
+        return ShotSize.CLOSE  # 近景高潮
+    else:
+        return ShotSize.MEDIUM  # 中景推进
+```
+
+### 运镜选择逻辑
+
+```python
+def select_camera_movement(
+    shot_size: ShotSize,
+    atmosphere: str,
+    position: float
+) -> CameraMovement:
+    """根据景别和氛围选择运镜
+
+    Args:
+        shot_size: 景别
+        atmosphere: 氛围 (tense/relaxed/mystery/etc)
+        position: 场景位置
+
+    Returns:
+        CameraMovement: 运镜类型
+    """
+    # 远景通常用平移或固定
+    if shot_size in [ShotSize.EXTREME_LONG, ShotSize.LONG]:
+        return CameraMovement.PAN_RIGHT if position < 0.5 else CameraMovement.STATIC
+
+    # 近景/特写用推拉或环绕
+    if shot_size in [ShotSize.CLOSE, ShotSize.EXTREME_CLOSE]:
+        if atmosphere == "tense":
+            return CameraMovement.ZOOM_IN
+        else:
+            return CameraMovement.ARC_LEFT
+
+    # 中景根据氛围决定
+    if atmosphere == "tense":
+        return CameraMovement.DOLLY_IN
+    elif atmosphere == "relaxed":
+        return CameraMovement.TRACK_LEFT
+    else:
+        return CameraMovement.STATIC
+```
+
+### 转场选择逻辑
+
+```python
+def select_transition(
+    current_scene: int,
+    total_scenes: int,
+    atmosphere_change: str
+) -> TransitionType:
+    """选择转场类型
+
+    Args:
+        current_scene: 当前场景序号
+        total_scenes: 总场景数
+        atmosphere_change: 氛围变化 (sharp/gradual/none)
+
+    Returns:
+        TransitionType: 转场类型
+    """
+    # 开场淡入
+    if current_scene == 0:
+        return TransitionType.FADE_IN
+
+    # 结尾淡出
+    if current_scene == total_scenes - 1:
+        return TransitionType.FADE_OUT
+
+    # 氛围剧变用擦除
+    if atmosphere_change == "sharp":
+        return TransitionType.WIPE_LEFT
+
+    # 平滑过渡用溶解
+    if atmosphere_change == "gradual":
+        return TransitionType.CROSS_FADE
+
+    # 默认切换
+    return TransitionType.CUT
+```
 
 ---
 
@@ -402,6 +570,13 @@ graph LR
 | `parameters.duration` | int | 视频时长（秒） |
 | `parameters.audio` | bool | 是否使用音频 |
 | `parameters.shot_type` | str | 镜头类型: `single` / `multi` |
+
+### shot_type 参数映射
+
+| CameraShot.shot_type | API参数 | 说明 |
+|---------------------|---------|------|
+| 静态镜头 (static) | `single` | 单镜头模式 |
+| 运动镜头 (其他) | `multi` | 多镜头模式，自动添加运镜效果 |
 
 ### 查询任务状态
 
@@ -430,7 +605,7 @@ curl --request GET 'https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}' \
 
 ```
 阶段1: ████████████████████████  100%
-阶段2: ████████████████░░░░░░░░░  75%  (3/4完成)
+阶段2: ████████████████░░░░░░░░░  75%  (3/4完成, 2.2运镜规划部分待实现)
 阶段3: ░░░░░░░░░░░░░░░░░░░░░░░░░   0%  (0/2完成)
 阶段4: ░░░░░░░░░░░░░░░░░░░░░░░░░   0%  (0/1完成)
 
@@ -443,7 +618,7 @@ curl --request GET 'https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}' \
 |-----|-------|------|------|------|
 | 阶段1 | 1.0 | 输入处理 | ✅ 已实现 | Web界面输入、验证 |
 | 阶段2 | 2.1 | 剧本生成 | ✅ 已实现 | 使用千问LLM |
-| | 2.2 | 画面描述 | ✅ 已实现 | LLM + Prompt工程 |
+| | 2.2 | 画面+运镜 | 🚧 部分实现 | 提示词✅ 运镜规划🚧 |
 | | 2.3 | 图像生成 | ✅ 已实现 | 使用通义万相 |
 | | 2.4 | 音频生成 | 🚧 待实现 | TTS + BGM |
 | 阶段3 | 3.1 | 视频生成 | 🚧 待实现 | wan2.6-i2v API |
@@ -459,14 +634,15 @@ curl --request GET 'https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}' \
 
 ### 待开发功能
 
+- 🚧 2.2: 运镜规划算法（景别/运镜/转场）
 - 🚧 2.4: 音频生成（TTS + BGM + 上传）
-- 🚧 3.1: 视频生成（wan2.6-i2v API调用）
-- 🚧 3.2: 视频拼接（FFmpeg）
+- 🚧 3.1: 视频生成（wan2.6-i2v API调用 + 运镜参数映射）
+- 🚧 3.2: 视频拼接（FFmpeg + 转场效果）
 - 🚧 4.0: 输出交付
 - 🚧 扩展Web界面支持完整流程
 
 ---
 
-*文档版本: 4.0*
+*文档版本: 5.0*
 *最后更新: 2026-02-05*
-*重大变更: 使用子阶段编号(2.1, 2.2...)细化流程*
+*重大变更: 运镜规划在2.2阶段生成，用于3.1/3.2阶段*
