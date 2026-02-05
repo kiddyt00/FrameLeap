@@ -13,7 +13,7 @@ from typing import Callable
 import time
 
 from app.config import config, Config
-from app.models import GenerationResult, AudioData
+from app.models import GenerationResult, AudioData, ScriptData
 from app.stages import (
     InputStage,
     ScriptGenerationStage,
