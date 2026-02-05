@@ -171,7 +171,7 @@ class APIConfig:
         image_provider: str = "flux_cn",
         image_api_key: str | None = None,
         image_base_url: str | None = None,
-        tts_provider: str = "fish",
+        tts_provider: str = "qwen",
         tts_api_key: str | None = None,
     ):
         # 优先从环境变量读取

@@ -512,6 +512,140 @@ class XingTuo_API(BaseTTSAPI):
         raise NotImplementedError("标贝API待实现")
 
 
+class QwenTTS_API(BaseTTSAPI):
+    """通义千问TTS - 阿里云语音合成
+
+    使用CosyVoice或Sambert模型进行语音合成
+
+    支持音色:
+    - Cherry: 活泼女声
+    - Aijia: 温柔女声
+    - Aida: 沉稳女声
+    - Aimei: 甜美女声
+    - Zhichu: 知性女声
+    - Aixia: 活泼女声
+    - Aibin: 沉稳男声
+    - Aitong: 童声
+    - Aiyue: 温暖女声
+
+    Example:
+        >>> api = QwenTTS_API("sk-xxx")
+        >>> audio_data = api.synthesize("你好世界", voice_id="Cherry")
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+    ) -> None:
+        """初始化通义千问TTS API客户端"""
+        super().__init__(api_key, "https://dashscope.aliyuncs.com")
+
+    @property
+    def headers(self) -> dict[str, str]:
+        """获取默认请求头"""
+        base_headers = super().headers
+        base_headers["X-DashScope-Async"] = "enable"
+        return base_headers
+
+    def synthesize(
+        self,
+        text: str,
+        voice_id: str | None = None,
+        **kwargs: Any,
+    ) -> AudioData:
+        """合成语音（使用HTTP REST API）"""
+        import time
+
+        # 默认使用 Cherry 音色
+        voice = voice_id or kwargs.get("voice", "Cherry")
+
+        # 步骤1: 提交任务
+        data = {
+            "model": "cosyvoice-v1",
+            "input": {
+                "text": text
+            },
+            "parameters": {
+                "text_type": "PlainText",
+                "voice": voice,
+                # 可选参数
+                "sample_rate": kwargs.get("sample_rate", 24000),
+                "format": kwargs.get("format", "mp3"),
+                "rate": kwargs.get("rate", 1.0),  # 语速，范围0.5-2.0
+                "volume": kwargs.get("volume", 50),  # 音量，范围0-100
+            }
+        }
+
+        print(f"[DEBUG] 提交通义千问TTS任务...")
+        response = self.post(
+            "/api/v1/services/audio/generation/generation",
+            data=data
+        )
+        result = self.parse_json_response(response)
+
+        print(f"[DEBUG] TTS任务提交响应: {result}")
+
+        # 检查是否有错误
+        if "code" in result:
+            code = result["code"]
+            if code and code != "Success" and code != "":
+                error_msg = result.get("message", "未知错误")
+                raise ValueError(f"通义千问TTS API错误 [{code}]: {error_msg}")
+
+        # 获取task_id
+        if "output" not in result or "task_id" not in result["output"]:
+            print(f"[ERROR] 未知的响应格式: {result}")
+            raise ValueError(f"Unknown response format. Keys: {result.keys()}")
+
+        task_id = result["output"]["task_id"]
+        print(f"[DEBUG] TTS任务ID: {task_id}")
+
+        # 步骤2: 轮询任务结果
+        max_wait = 60  # 最多等待60秒
+        interval = 1   # 每1秒检查一次
+        waited = 0
+
+        while waited < max_wait:
+            time.sleep(interval)
+            waited += interval
+
+            print(f"[DEBUG] 查询TTS任务状态 ({waited}s)...")
+
+            # 查询任务结果
+            result_response = self.get(
+                f"/api/v1/tasks/{task_id}"
+            )
+            task_result = self.parse_json_response(result_response)
+
+            # 检查任务状态
+            if "output" in task_result:
+                task_status = task_result["output"].get("task_status", "")
+                print(f"[DEBUG] TTS任务状态: {task_status}")
+
+                if task_status == "SUCCEEDED":
+                    # 任务成功，获取结果
+                    output_url = task_result["output"].get("output_url", "")
+                    if output_url:
+                        print(f"[DEBUG] 音频URL: {output_url}")
+
+                        # 下载音频（使用完整URL）
+                        import httpx
+                        audio_response = httpx.get(output_url, timeout=60.0)
+                        if audio_response.status_code == 200:
+                            print(f"[DEBUG] 音频下载成功，大小: {len(audio_response.content)} 字节")
+                            return audio_response.content
+                        else:
+                            raise ValueError(f"音频下载失败: HTTP {audio_response.status_code}")
+
+                elif task_status == "FAILED":
+                    error_msg = task_result["output"].get("message", "未知错误")
+                    raise ValueError(f"通义千问TTS任务失败: {error_msg}")
+
+                # 任务仍在处理中（PENDING, RUNNING），继续等待
+
+        raise ValueError(f"通义千问TTS任务超时（等待{max_wait}秒）")
+
+
 # =============================================================================
 # API工厂 - 优先使用国内服务
 # =============================================================================
@@ -584,7 +718,7 @@ def create_tts_api(
     """创建TTS API
 
     Args:
-        provider: 提供商名称
+        provider: 提供商名称 (qwen, fish, xingtuo)
         api_key: API密钥
         **kwargs: 其他参数
 
@@ -592,6 +726,7 @@ def create_tts_api(
         TTS API实例
     """
     factories: dict[str, type[BaseTTSAPI]] = {
+        "qwen": QwenTTS_API,
         "fish": FishAudio_API,
         "xingtuo": XingTuo_API,
     }
@@ -602,6 +737,8 @@ def create_tts_api(
             f"Supported: {', '.join(factories.keys())}"
         )
 
+    if provider == "qwen":
+        return QwenTTS_API(api_key)
     if provider == "fish":
         return FishAudio_API(api_key or kwargs["fish_key"])
     if provider == "xingtuo":
@@ -623,6 +760,7 @@ __all__ = [
     "QwenImage_API",
     # TTS
     "BaseTTSAPI",
+    "QwenTTS_API",
     "FishAudio_API",
     "XingTuo_API",
     # Factories

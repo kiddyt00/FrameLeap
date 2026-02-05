@@ -30,7 +30,8 @@
       "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" add app/stages/__init__.py)",
       "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" commit -m \"fix: 添加图像生成延迟避免速率限制\n\n- 在图像生成之间添加2秒延迟\n- 避免触发通义万相API的QPS限制\")",
       "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" add -A)",
-      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" commit -m \"fix: 修复图片下载和展示问题\n\n- 修复通义万相图片URL下载逻辑，使用完整URL\n- 删除配置文件中的相对路径，使用默认绝对路径\n- 添加详细的图片保存和访问日志\n- 添加前端图片URL调试日志和错误处理\n- 确保图片文件正确保存到temp目录\")"
+      "Bash(git -C \"C:\\\\Users\\\\morefine\\\\PycharmProjects\\\\FrameLeap\" commit -m \"fix: 修复图片下载和展示问题\n\n- 修复通义万相图片URL下载逻辑，使用完整URL\n- 删除配置文件中的相对路径，使用默认绝对路径\n- 添加详细的图片保存和访问日志\n- 添加前端图片URL调试日志和错误处理\n- 确保图片文件正确保存到temp目录\")",
+      "Bash(git push:*)"
     ]
   }
 }
