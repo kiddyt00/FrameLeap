@@ -301,33 +301,45 @@ class Config:
     def load(cls) -> "Config":
         """从配置文件加载
 
+        优先级：项目目录 config.json > 用户目录 ~/.frameleap/config.json > 默认配置
+
         Returns:
             配置对象
 
         Examples:
             >>> config = Config.load()
         """
-        config_file = Path.home() / ".frameleap" / "config.json"
+        # 检查多个配置文件位置
+        config_files = [
+            # 当前项目目录下的 config.json
+            Path(__file__).parent.parent.parent / "config.json",
+            # 用户主目录下的配置
+            Path.home() / ".frameleap" / "config.json",
+        ]
 
-        if config_file.exists():
-            try:
-                with open(config_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+        for config_file in config_files:
+            if config_file.exists():
+                try:
+                    with open(config_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
 
-                # 从字典创建配置
-                return cls(
-                    video=VideoConfig(**data.get("video", {})),
-                    style=StyleConfig(**data.get("style", {})),
-                    api=APIConfig(**data.get("api", {})),
-                    paths=PathConfig(**data.get("paths", {})),
-                    max_workers=data.get("max_workers", 4),
-                    debug=data.get("debug", False),
-                )
-            except (json.JSONDecodeError, TypeError) as e:
-                print(f"配置文件解析失败: {e}，使用默认配置")
-                return cls()
-        else:
-            return cls()
+                    print(f"从配置文件加载: {config_file}")
+
+                    # 从字典创建配置
+                    return cls(
+                        video=VideoConfig(**data.get("video", {})),
+                        style=StyleConfig(**data.get("style", {})),
+                        api=APIConfig(**data.get("api", {})),
+                        paths=PathConfig(**data.get("paths", {})),
+                        max_workers=data.get("max_workers", 4),
+                        debug=data.get("debug", False),
+                    )
+                except (json.JSONDecodeError, TypeError) as e:
+                    print(f"配置文件解析失败 ({config_file}): {e}，使用默认配置")
+                    continue
+
+        # 没有找到配置文件，使用默认配置
+        return cls()
 
     def save(self) -> None:
         """保存到配置文件
