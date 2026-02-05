@@ -168,7 +168,7 @@ class APIConfig:
         llm_api_key: str | None = None,
         llm_base_url: str | None = None,
         llm_model: str = "deepseek-chat",
-        image_provider: str = "flux_cn",
+        image_provider: str = "qwen_image",
         image_api_key: str | None = None,
         image_base_url: str | None = None,
         tts_provider: str = "qwen",
@@ -181,7 +181,8 @@ class APIConfig:
         self.llm_model = os.getenv("FRAMELEAP_LLM_MODEL", llm_model)
 
         self.image_provider = os.getenv("FRAMELEAP_IMAGE_PROVIDER", image_provider)
-        self.image_api_key = image_api_key or os.getenv("FRAMELEAP_IMAGE_API_KEY")
+        # 图像API密钥默认复用LLM的API密钥（通义万相与通义千问共用密钥）
+        self.image_api_key = image_api_key or os.getenv("FRAMELEAP_IMAGE_API_KEY") or self.llm_api_key
         self.image_base_url = image_base_url or os.getenv("FRAMELEAP_IMAGE_BASE_URL")
 
         self.tts_provider = os.getenv("FRAMELEAP_TTS_PROVIDER", tts_provider)
