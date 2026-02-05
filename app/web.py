@@ -452,6 +452,242 @@ async def run_generation_task(session_id: str):
         })
 
 
+async def run_stage_regeneration(session_id: str, stage_id: str):
+    """
+    重新生成指定阶段
+
+    只重新生成指定阶段，不影响其他阶段
+    """
+    print(f"[DEBUG] Regenerating stage {stage_id} for session {session_id}")
+    session = get_session(session_id)
+    if not session:
+        print(f"[DEBUG] Session not found: {session_id}")
+        return
+
+    # 阶段名称映射
+    stage_names = {
+        "input": "输入处理",
+        "script": "剧本生成",
+        "scene_desc": "场景描述",
+        "image": "图像生成",
+    }
+
+    # 验证阶段ID
+    if stage_id not in stage_names:
+        await manager.broadcast_to_session(session_id, {
+            "type": "error",
+            "error": f"无效的阶段ID: {stage_id}"
+        })
+        return
+
+    # 重置阶段状态
+    node = session.get_node(stage_id)
+    if not node:
+        await manager.broadcast_to_session(session_id, {
+            "type": "error",
+            "error": f"阶段不存在: {stage_id}"
+        })
+        return
+
+    node.status = StageStatus.PENDING
+    node.progress = 0.0
+    node.start_time = None
+    node.end_time = None
+    node.error_message = None
+
+    # 创建进度队列
+    progress_queue: asyncio.Queue[tuple[str, float]] = asyncio.Queue()
+    error_queue: asyncio.Queue[Exception] = asyncio.Queue()
+
+    async def progress_dispatcher():
+        """后台任务：从队列处理进度更新并发送WebSocket"""
+        try:
+            while True:
+                stage_name, progress = await progress_queue.get()
+                print(f"[DEBUG] Regeneration dispatcher received: {stage_name} - {progress}")
+
+                # 推送更新
+                await manager.broadcast_to_session(session_id, {
+                    "type": "stage_update",
+                    "stage_id": stage_id,
+                    "status": "running",
+                    "progress": progress,
+                    "is_regeneration": True
+                })
+                progress_queue.task_done()
+        except asyncio.CancelledError:
+            pass
+
+    async def error_dispatcher():
+        """后台任务：从队列处理错误并发送WebSocket"""
+        try:
+            while True:
+                error = await error_queue.get()
+                await manager.broadcast_to_session(session_id, {
+                    "type": "error",
+                    "error": str(error)
+                })
+        except asyncio.CancelledError:
+            pass
+
+    try:
+        # 启动分发器任务
+        progress_task = asyncio.create_task(progress_dispatcher())
+        error_task = asyncio.create_task(error_dispatcher())
+
+        # 导入 Generator
+        from app.generator import Generator
+        from app.config import config
+
+        # 创建回调
+        def sync_progress_callback(stage_name: str, progress: float):
+            try:
+                progress_queue.put_nowait((stage_name, progress))
+            except Exception as e:
+                print(f"Failed to queue progress: {e}")
+
+        def sync_error_callback(error: Exception):
+            try:
+                error_queue.put_nowait(error)
+            except Exception as e:
+                print(f"Failed to queue error: {e}")
+
+        # 创建生成器
+        generator = Generator(cfg=config)
+        generator._progress_callback = sync_progress_callback
+        generator._error_callback = sync_error_callback
+
+        # 根据阶段执行不同的生成逻辑
+        result = None
+
+        if stage_id == "script":
+            # 重新生成剧本
+            from app.models.script import Script
+            result = asyncio.to_thread(
+                generator.generate_script,
+                session.input_text,
+                session.style
+            )
+            script = await result
+            if script:
+                # 序列化场景数据
+                scenes_data = []
+                for scene in script.scenes:
+                    scenes_data.append({
+                        "order": scene.order,
+                        "title": scene.title,
+                        "description": scene.description,
+                        "atmosphere": scene.atmosphere
+                    })
+
+                # 序列化角色数据
+                characters_data = []
+                for char_id, char in script.characters.items():
+                    characters_data.append({
+                        "id": char_id,
+                        "name": char.name,
+                        "type": char.character_type.value if hasattr(char.character_type, 'value') else str(char.character_type),
+                        "description": char.description,
+                        "personality": char.personality if hasattr(char, 'personality') else [],
+                        "age": char.appearance.age if hasattr(char, 'appearance') and char.appearance else "unknown",
+                        "gender": char.appearance.gender if hasattr(char, 'appearance') and char.appearance else "unknown"
+                    })
+
+                node.output = {
+                    "title": script.title,
+                    "story_type": script.story_type.value if hasattr(script.story_type, 'value') else str(script.story_type),
+                    "theme": script.theme,
+                    "premise": script.premise,
+                    "scene_count": len(script.scenes),
+                    "scenes": scenes_data,
+                    "character_count": len(script.characters),
+                    "characters": characters_data
+                }
+                node.status = StageStatus.SUCCESS
+            else:
+                node.status = StageStatus.FAILED
+                node.error_message = "剧本生成失败"
+
+        elif stage_id == "scene_desc":
+            # 重新生成场景描述（需要先有剧本）
+            if not session.get_node("script").output:
+                node.status = StageStatus.FAILED
+                node.error_message = "请先生成剧本"
+            else:
+                # 场景描述是在剧本生成时一起完成的
+                node.output = {
+                    "description_count": len(session.get_node("script").output.get("scenes", [])),
+                    "scenes_prepared": len(session.get_node("script").output.get("scenes", []))
+                }
+                node.status = StageStatus.SUCCESS
+
+        elif stage_id == "image":
+            # 重新生成图像（需要先有剧本）
+            script_output = session.get_node("script").output
+            if not script_output:
+                node.status = StageStatus.FAILED
+                node.error_message = "请先生成剧本"
+            else:
+                # 调用图像生成
+                images = await asyncio.to_thread(
+                    generator.generate_images,
+                    session.input_text,
+                    session.style,
+                    session.resolution
+                )
+                if images:
+                    node.output = {"image_paths": images}
+                    node.status = StageStatus.SUCCESS
+                else:
+                    node.status = StageStatus.FAILED
+                    node.error_message = "图像生成失败"
+
+        elif stage_id == "input":
+            # 输入阶段不需要重新生成
+            node.output = {
+                "input_text": session.input_text,
+                "style": session.style,
+                "resolution": session.resolution
+            }
+            node.status = StageStatus.SUCCESS
+
+        node.end_time = datetime.now()
+        if node.start_time is None:
+            node.start_time = node.end_time
+
+        # 等待队列处理完毕
+        await progress_queue.join()
+        await error_queue.join()
+
+        # 取消分发器任务
+        progress_task.cancel()
+        error_task.cancel()
+        await asyncio.gather(progress_task, error_task, return_exceptions=True)
+
+        # 推送最终状态
+        await manager.broadcast_to_session(session_id, {
+            "type": "stage_update",
+            "stage_id": stage_id,
+            "status": node.status.value,
+            "output": node.output,
+            "duration": node.duration,
+            "is_regeneration": True
+        })
+
+    except Exception as e:
+        node.status = StageStatus.FAILED
+        node.error_message = str(e)
+        node.end_time = datetime.now()
+
+        await manager.broadcast_to_session(session_id, {
+            "type": "stage_update",
+            "stage_id": stage_id,
+            "status": "failed",
+            "error": str(e),
+            "is_regeneration": True
+        })
+
+
 # =============================================================================
 # FastAPI应用
 # =============================================================================
@@ -781,9 +1017,39 @@ async def index():
         .status-success { background: #10b981; }
         .status-failed { background: #ef4444; }
 
+        /* 重新生成按钮 */
+        .stage-regenerate-btn {
+            padding: 6px 14px;
+            font-size: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+        .stage-regenerate-btn:hover:not(:disabled) {
+            background: #f8fafc;
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+        .stage-regenerate-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .stage-regenerate-btn.running {
+            animation: spin 1s linear infinite;
+        }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         /* 右侧结果区域 */
@@ -1169,6 +1435,9 @@ async def index():
                         <div class="stage-info-name">${stageDef.name}</div>
                         <div class="stage-info-desc">${stageDef.description}</div>
                     </div>
+                    <button class="stage-regenerate-btn" id="regenerate-${stageId}" onclick="regenerateStage('${stageId}')" disabled>
+                        🔄 重新生成
+                    </button>
                     <div class="stage-status-indicator status-pending" id="status-${stageId}"></div>
                 </div>
                 <div class="stage-results" id="results-${stageId}">
@@ -1276,22 +1545,23 @@ async def index():
                     addResultCard(data.stage_id, data.output);
                 }
 
-                // 计算整体进度
+                // 更新进度（只统计首次完成）
                 let completed = 0;
                 STAGE_ORDER.forEach(id => {
-                    const indicator = document.getElementById(`status-${id}`);
-                    if (indicator && indicator.classList.contains('status-success')) {
+                    const resultsContainer = document.getElementById(`results-${id}`);
+                    if (resultsContainer && !resultsContainer.querySelector('.empty-state')) {
                         completed++;
                     }
                 });
-                const progress = completed / STAGE_ORDER.length;
+                const progress = Math.min(completed / STAGE_ORDER.length, 1);
                 const stageNames = {
                     'input': '输入处理',
                     'script': '剧本生成',
                     'scene_desc': '场景描述',
                     'image': '图像生成',
                 };
-                updateProgress(progress, stageNames[data.stage_id] || '处理中');
+                const isRegeneration = data.is_regeneration ? '重新' : '';
+                updateProgress(progress, `${isRegeneration}${stageNames[data.stage_id] || '处理中'}`);
 
             } else if (data.type === 'complete') {
                 generationComplete(data.output_path);
@@ -1306,6 +1576,70 @@ async def index():
             const indicator = document.getElementById(`status-${stageId}`);
             if (indicator) {
                 indicator.className = `stage-status-indicator status-${status}`;
+            }
+
+            // 更新重新生成按钮状态
+            const regenerateBtn = document.getElementById(`regenerate-${stageId}`);
+            if (regenerateBtn) {
+                // 只有在之前阶段都完成时才启用重新生成按钮
+                const stageIndex = STAGE_ORDER.indexOf(stageId);
+                let canRegenerate = true;
+
+                if (stageIndex > 0) {
+                    // 检查前面的阶段是否都完成
+                    for (let i = 0; i < stageIndex; i++) {
+                        const prevIndicator = document.getElementById(`status-${STAGE_ORDER[i]}`);
+                        if (!prevIndicator || !prevIndicator.classList.contains('status-success')) {
+                            canRegenerate = false;
+                            break;
+                        }
+                    }
+                }
+
+                regenerateBtn.disabled = !canRegenerate || status === 'running';
+            }
+        }
+
+        // 重新生成阶段
+        async function regenerateStage(stageId) {
+            if (!currentSessionId) {
+                alert('请先生成完整流程');
+                return;
+            }
+
+            const regenerateBtn = document.getElementById(`regenerate-${stageId}`);
+            if (regenerateBtn) {
+                regenerateBtn.disabled = true;
+                regenerateBtn.classList.add('running');
+                regenerateBtn.textContent = '⏳ 生成中...';
+            }
+
+            // 更新状态为运行中
+            updateStageStatus(stageId, 'running');
+
+            try {
+                const res = await fetch('/api/regenerate_stage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        stage_id: stageId
+                    })
+                });
+
+                const data = await res.json();
+                if (data.error) {
+                    alert('重新生成失败: ' + data.error);
+                    updateStageStatus(stageId, 'failed');
+                }
+            } catch (e) {
+                alert('请求失败: ' + e.message);
+                updateStageStatus(stageId, 'failed');
+            } finally {
+                if (regenerateBtn) {
+                    regenerateBtn.classList.remove('running');
+                    regenerateBtn.textContent = '🔄 重新生成';
+                }
             }
         }
 
@@ -1569,6 +1903,22 @@ async def get_session_api(session_id: str):
             }
             for stage_id, node in session.nodes.items()
         }
+    }
+
+
+@app.post("/api/regenerate_stage")
+async def regenerate_stage_api(request: RegenerateRequest, background_tasks: BackgroundTasks):
+    """重新生成指定阶段"""
+    session = get_session(request.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 启动后台重新生成任务
+    background_tasks.add_task(run_stage_regeneration, request.session_id, request.stage_id)
+
+    return {
+        "success": True,
+        "message": f"开始重新生成阶段: {request.stage_id}"
     }
 
 
