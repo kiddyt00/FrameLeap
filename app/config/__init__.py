@@ -241,13 +241,16 @@ class PathConfig:
         cache_dir: Path | None = None,
         model_dir: Path | None = None,
     ):
-        # 默认使用用户主目录
-        home = Path.home()
+        # 默认使用项目目录
+        # 获取app/config/__init__.py所在的项目根目录
+        import inspect
+        config_file = Path(inspect.getfile(PathConfig))
+        project_root = config_file.parent.parent.parent  # 从app/config/回到项目根目录
 
-        self.work_dir = Path(work_dir or home / "FrameLeap" / "output")
-        self.temp_dir = Path(temp_dir or home / "FrameLeap" / "temp")
-        self.cache_dir = Path(cache_dir or home / "FrameLeap" / "cache")
-        self.model_dir = Path(model_dir or home / "FrameLeap" / "models")
+        self.work_dir = Path(work_dir or project_root / "output")
+        self.temp_dir = Path(temp_dir or project_root / "temp")
+        self.cache_dir = Path(cache_dir or project_root / "cache")
+        self.model_dir = Path(model_dir or project_root / "models")
 
         # 创建目录
         self._create_directories()
