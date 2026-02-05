@@ -692,9 +692,110 @@ class TextLayerData:
 
 
 class AudioGenerationStage(BaseStage):
-    """音频生成阶段"""
+    """音频生成阶段 - TTS配音+背景音乐"""
+
+    def __init__(self, cfg: Config):
+        super().__init__(cfg)
+        self.tts_api = self._create_tts_api()
+
+    def _create_tts_api(self):
+        """创建TTS API实例"""
+        provider = self.cfg.api.tts_provider
+        api_key = self.cfg.api.tts_api_key
+
+        if not api_key:
+            print("[WARN] 未设置TTS API密钥，音频生成将使用占位符")
+            return None
+
+        try:
+            from app.utils.domestic_apis import create_tts_api
+            return create_tts_api(provider, api_key)
+        except Exception as e:
+            print(f"[ERROR] 创建TTS API失败: {e}")
+            return None
+
     def generate(self, script: ScriptData) -> AudioData:
-        return AudioData()
+        """生成音频（TTS配音 + BGM）"""
+        import time
+
+        audio_data = AudioData()
+        audio_files = []
+
+        # 为每个场景的旁白生成TTS
+        for i, scene in enumerate(script.scenes):
+            # 提取旁白文本（从场景描述中获取）
+            narration_text = self._extract_narration(scene)
+
+            if not narration_text:
+                print(f"[WARN] 场景 {scene.title} 没有旁白文本，跳过TTS")
+                continue
+
+            # 生成音频文件路径
+            audio_path = self.temp_dir / f"audio_scene_{scene.id}.mp3"
+
+            if self.tts_api:
+                try:
+                    print(f"[DEBUG] 生成场景 {i+1}/{len(script.scenes)} 的TTS音频: {scene.title}")
+
+                    # 调用TTS API
+                    audio_binary = self.tts_api.synthesize(
+                        text=narration_text,
+                        voice_id=self._select_voice(scene)
+                    )
+
+                    # 保存音频文件
+                    audio_path.write_bytes(audio_binary)
+
+                    # 创建音轨
+                    track = AudioTrack(
+                        id=f"tts_{scene.id}",
+                        type="voiceover",
+                        source=str(audio_path.name),  # 只保存文件名
+                        duration=3.0,  # 默认3秒，后续可以解析实际时长
+                    )
+                    audio_data.tracks.append(track)
+                    audio_files.append(str(audio_path.name))
+
+                    print(f"[DEBUG] TTS音频已生成: {audio_path.name}")
+
+                    # 添加延迟避免速率限制
+                    if i < len(script.scenes) - 1:
+                        time.sleep(1)
+
+                except Exception as e:
+                    print(f"[ERROR] TTS生成失败: {e}，创建占位文件")
+                    audio_path.touch()
+            else:
+                print(f"[WARN] TTS API不可用，创建占位文件: {audio_path}")
+                audio_path.touch()
+
+        print(f"[DEBUG] 音频生成完成，共 {len(audio_files)} 个音频文件")
+        return audio_data
+
+    def _extract_narration(self, scene: SceneData) -> str:
+        """从场景中提取旁白文本"""
+        # 尝试从elements中提取旁白
+        for element in scene.elements:
+            if element.type == "narration":
+                return element.content
+
+        # 如果没有专门的旁白元素，使用场景描述
+        return scene.description or scene.title
+
+    def _select_voice(self, scene: SceneData) -> str:
+        """根据场景氛围选择音色"""
+        # 简单的音色选择逻辑
+        atmosphere = scene.atmosphere or "normal"
+
+        voice_map = {
+            "tense": "female_serious",      # 紧张场景用严肃女声
+            "relaxed": "female_gentle",     # 轻松场景用温柔女声
+            "mysterious": "male_deep",      # 神秘场景用深沉男声
+            "happy": "female_cheerful",     # 开心场景用欢快女声
+            "sad": "female_melancholy",     # 悲伤场景用忧郁女声
+        }
+
+        return voice_map.get(atmosphere, "female_qingxin")  # 默认用清新华语女声
 
 
 class TextSubtitleStage(BaseStage):

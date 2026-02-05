@@ -13,12 +13,13 @@ from typing import Callable
 import time
 
 from app.config import config, Config
-from app.models import GenerationResult
+from app.models import GenerationResult, AudioData
 from app.stages import (
     InputStage,
     ScriptGenerationStage,
     SceneDescriptionStage,
     ImageGenerationStage,
+    AudioGenerationStage,
 )
 from app.stages import InputData
 from app.utils.types import ProgressCallback, ErrorCallback
@@ -73,7 +74,9 @@ class Generator:
         print("[DEBUG] _init_stages: SceneDescriptionStage created")
         self.image = ImageGenerationStage(self.cfg)
         print("[DEBUG] _init_stages: ImageGenerationStage created")
-        print("[DEBUG] _init_stages: All 4 stages created")
+        self.audio = AudioGenerationStage(self.cfg)
+        print("[DEBUG] _init_stages: AudioGenerationStage created")
+        print("[DEBUG] _init_stages: All 5 stages created")
 
     def _report_progress(self, stage_name: str, progress: float) -> None:
         """报告进度
@@ -102,9 +105,9 @@ class Generator:
         resolution: str | None = None,
     ) -> GenerationResult:
         """
-        生成剧本和图像（4阶段流程）
+        生成剧本和图像（5阶段流程）
 
-        执行：输入处理 -> 剧本生成（LLM） -> 场景描述生成 -> 图像生成（通义万相）
+        执行：输入处理 -> 剧本生成（LLM） -> 场景描述生成 -> 图像生成（通义万相） -> 音频生成（TTS）
 
         Args:
             text: 输入文本，一句话或短篇故事
@@ -148,26 +151,31 @@ class Generator:
                     self.cfg.video.height = 1024
 
             # 阶段1: 输入处理
-            self._report_progress("输入处理", 0.25)
+            self._report_progress("输入处理", 0.2)
             input_data = self.input.process(text, style)
 
             # 阶段2: 剧本生成（调用千问LLM）
-            self._report_progress("剧本生成", 0.5)
+            self._report_progress("剧本生成", 0.4)
             script = self.script.generate(input_data)
 
             # 阶段3: 场景描述生成
-            self._report_progress("场景描述生成", 0.75)
+            self._report_progress("场景描述生成", 0.6)
             scene_descriptions = self.scene_desc.generate(script)
 
             # 阶段4: 图像生成（调用通义万相）
-            self._report_progress("图像生成", 1.0)
+            self._report_progress("图像生成", 0.8)
             image_paths = self.image.generate(scene_descriptions)
+
+            # 阶段5: 音频生成（TTS）
+            self._report_progress("音频生成", 1.0)
+            audio_data = self.audio.generate(script)
 
             return GenerationResult(
                 success=True,
                 video_path=None,
                 script=script,
                 images=image_paths,
+                audio=audio_data,
                 generation_time=time.perf_counter() - start,
             )
 
@@ -178,6 +186,151 @@ class Generator:
                 error_message=str(e),
                 generation_time=time.perf_counter() - start,
             )
+
+    def generate_script(
+        self,
+        text: str,
+        style: str | None = None,
+        resolution: str | None = None,
+    ) -> ScriptData | None:
+        """
+        单独生成剧本（阶段2.1）
+
+        Args:
+            text: 输入文本
+            style: 风格
+            resolution: 分辨率
+
+        Returns:
+            ScriptData: 剧本数据，失败返回None
+        """
+        try:
+            # 验证输入
+            if not text or not text.strip():
+                from app.exceptions import EmptyInputError
+                raise EmptyInputError()
+
+            # 更新配置
+            if resolution:
+                self.cfg.video = self.cfg.video.__class__.from_preset(resolution)
+            if style:
+                self.cfg.style.art_style = style
+
+            # 输入处理
+            input_data = self.input.process(text, style)
+
+            # 剧本生成
+            script = self.script.generate(input_data)
+
+            return script
+
+        except Exception as e:
+            self._report_error(e)
+            return None
+
+    def generate_images(
+        self,
+        text: str,
+        style: str | None = None,
+        resolution: str | None = None,
+    ) -> list[str] | None:
+        """
+        单独生成图像（阶段2.3）
+
+        执行：剧本生成 -> 场景描述 -> 图像生成
+
+        Args:
+            text: 输入文本
+            style: 风格
+            resolution: 分辨率
+
+        Returns:
+            list[str]: 图像文件名列表，失败返回None
+        """
+        try:
+            # 验证输入
+            if not text or not text.strip():
+                from app.exceptions import EmptyInputError
+                raise EmptyInputError()
+
+            # 更新配置
+            if resolution:
+                self.cfg.video = self.cfg.video.__class__.from_preset(resolution)
+            if style:
+                self.cfg.style.art_style = style
+
+            # 通义万相只支持特定尺寸，需要调整
+            if self.cfg.api.image_provider == "qwen_image":
+                current_size = f"{self.cfg.video.width}*{self.cfg.video.height}"
+                supported_sizes = ['1024*1024', '720*1280', '1280*720', '768*1152']
+                if current_size not in supported_sizes:
+                    print(f"[DEBUG] 调整图像尺寸: {current_size} -> 1024*1024")
+                    self.cfg.video.width = 1024
+                    self.cfg.video.height = 1024
+
+            # 输入处理
+            input_data = self.input.process(text, style)
+
+            # 剧本生成
+            script = self.script.generate(input_data)
+
+            # 场景描述生成
+            scene_descriptions = self.scene_desc.generate(script)
+
+            # 图像生成
+            image_paths = self.image.generate(scene_descriptions)
+
+            return image_paths
+
+        except Exception as e:
+            self._report_error(e)
+            return None
+
+    def generate_audio(
+        self,
+        text: str,
+        style: str | None = None,
+        resolution: str | None = None,
+    ) -> AudioData | None:
+        """
+        单独生成音频（阶段2.4）
+
+        执行：剧本生成 -> TTS音频生成
+
+        Args:
+            text: 输入文本
+            style: 风格
+            resolution: 分辨率
+
+        Returns:
+            AudioData: 音频数据，失败返回None
+        """
+        try:
+            # 验证输入
+            if not text or not text.strip():
+                from app.exceptions import EmptyInputError
+                raise EmptyInputError()
+
+            # 更新配置
+            if resolution:
+                self.cfg.video = self.cfg.video.__class__.from_preset(resolution)
+            if style:
+                self.cfg.style.art_style = style
+
+            # 输入处理
+            input_data = self.input.process(text, style)
+
+            # 剧本生成
+            script = self.script.generate(input_data)
+
+            # 音频生成
+            audio_data = self.audio.generate(script)
+
+            return audio_data
+
+        except Exception as e:
+            self._report_error(e)
+            return None
 
 
 def generate(
