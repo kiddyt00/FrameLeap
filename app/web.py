@@ -1000,6 +1000,1004 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket error: {e}")
 
+def get_embedded_html(stages_json: str, groups_json: str, order_json: str, deps_json: str, llm_configured: bool) -> str:
+    """获取内嵌的HTML内容"""
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrameLeap - 动态漫生成</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            min-height: 100vh;
+        }}
+        .container {{
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }}
+
+        /* 标题 */
+        .header {{
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 30px 0;
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #06b6d4 100%);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.15);
+        }}
+        .header h1 {{
+            color: #ffffff;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }}
+        .header p {{
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1em;
+        }}
+
+        /* 配置警告 */
+        .config-warning {{
+            background: #fff7ed;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: {'flex' if not llm_configured else 'none'};
+            align-items: center;
+            gap: 16px;
+        }}
+        .warning-content {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }}
+        .warning-icon {{ font-size: 28px; }}
+        .warning-text {{
+            color: #92400e;
+            font-size: 14px;
+        }}
+
+        /* 输入区域 */
+        .input-section {{
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }}
+        .input-group {{ margin-bottom: 15px; }}
+        .input-group label {{
+            display: block;
+            margin-bottom: 10px;
+            color: #334155;
+            font-weight: 600;
+            font-size: 14px;
+        }}
+        textarea {{
+            width: 100%;
+            height: 100px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            color: #1e293b;
+            padding: 16px;
+            font-size: 14px;
+            resize: vertical;
+            transition: all 0.2s;
+            font-family: inherit;
+        }}
+        textarea:focus {{
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            background: #ffffff;
+        }}
+        .controls {{
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }}
+        select {{
+            flex: 1;
+            min-width: 150px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+            cursor: pointer;
+            font-size: 14px;
+        }}
+        .btn {{
+            padding: 12px 32px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }}
+        .btn-primary {{
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: #ffffff;
+            box-shadow: 0 2px 10px rgba(37, 99, 235, 0.2);
+        }}
+        .btn-primary:hover {{
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        }}
+        .btn-primary:disabled {{
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }}
+
+        /* 进度条 */
+        .progress-section {{
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: none;
+            border: 1px solid #e2e8f0;
+        }}
+        .progress-section.active {{ display: block; }}
+        .progress-bar-container {{
+            height: 6px;
+            background: #f1f5f9;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }}
+        .progress-bar {{
+            height: 100%;
+            background: linear-gradient(90deg, #2563eb, #3b82f6, #06b6d4);
+            border-radius: 3px;
+            transition: width 0.4s ease;
+            width: 0%;
+        }}
+        .progress-text {{
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+        }}
+
+        /* 流程展示区域 */
+        .flow-section {{ display: none; }}
+        .flow-section.active {{ display: block; }}
+
+        /* 阶段分组 */
+        .stage-group {{
+            margin-bottom: 24px;
+        }}
+        .group-header {{
+            background: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%);
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid #c7d2fe;
+        }}
+        .group-icon {{ font-size: 28px; }}
+        .group-name {{
+            font-size: 18px;
+            font-weight: 700;
+            color: #3730a3;
+        }}
+        .group-stages {{
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }}
+
+        /* 阶段行 */
+        .stage-row {{
+            display: flex;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s;
+        }}
+        .stage-row:hover {{
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }}
+
+        /* 左侧阶段信息 */
+        .stage-info {{
+            flex-shrink: 0;
+            width: 320px;
+            padding: 16px 20px;
+            border-right: 1px solid #e2e8f0;
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }}
+        .stage-info-icon {{ font-size: 32px; flex-shrink: 0; }}
+        .stage-info-text {{ flex: 1; min-width: 0; }}
+        .stage-info-name {{
+            font-weight: 600;
+            font-size: 15px;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }}
+        .stage-info-sub {{
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+        }}
+        .stage-info-desc {{
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.4;
+        }}
+
+        /* 状态指示器 */
+        .stage-status-indicator {{
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }}
+        .status-pending {{ background: #cbd5e1; }}
+        .status-running {{
+            background: #f59e0b;
+            animation: pulse 1.5s infinite;
+        }}
+        .status-success {{ background: #10b981; }}
+        .status-failed {{ background: #ef4444; }}
+        .status-skipped {{ background: #94a3b8; }}
+
+        @keyframes pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.5; }}
+        }}
+
+        /* 重新生成按钮 */
+        .stage-regenerate-btn {{
+            padding: 6px 14px;
+            font-size: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: auto;
+            white-space: nowrap;
+        }}
+        .stage-regenerate-btn:hover:not(:disabled) {{
+            background: #f8fafc;
+            border-color: #2563eb;
+            color: #2563eb;
+        }}
+        .stage-regenerate-btn:disabled {{
+            opacity: 0.4;
+            cursor: not-allowed;
+        }}
+
+        /* 右侧结果区域 */
+        .stage-results {{
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            min-height: 120px;
+            align-items: stretch;
+        }}
+        .stage-results::-webkit-scrollbar {{
+            height: 8px;
+        }}
+        .stage-results::-webkit-scrollbar-track {{
+            background: #f1f5f9;
+            border-radius: 4px;
+        }}
+        .stage-results::-webkit-scrollbar-thumb {{
+            background: #cbd5e1;
+            border-radius: 4px;
+        }}
+
+        /* 空状态 */
+        .empty-state {{
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            font-size: 14px;
+        }}
+
+        /* 结果卡片 */
+        .result-card {{
+            flex-shrink: 0;
+            width: 300px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }}
+        .result-card:hover {{
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }}
+        .result-header {{
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        .result-title {{
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+        }}
+        .result-time {{
+            font-size: 11px;
+            color: #94a3b8;
+        }}
+        .result-content {{
+            padding: 16px;
+            max-height: 280px;
+            overflow-y: auto;
+        }}
+
+        /* 结果内容样式 */
+        .result-text {{
+            font-size: 13px;
+            line-height: 1.6;
+            color: #334155;
+        }}
+        .result-text strong {{
+            color: #2563eb;
+            font-weight: 600;
+        }}
+
+        /* 场景列表 */
+        .scene-list {{
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }}
+        .scene-item {{
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }}
+        .scene-title {{
+            font-size: 13px;
+            font-weight: 600;
+            color: #2563eb;
+            margin-bottom: 4px;
+        }}
+        .scene-desc {{
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.4;
+        }}
+
+        /* 图像网格 */
+        .image-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }}
+        .image-item {{
+            aspect-ratio: 16/10;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            background: #f1f5f9;
+        }}
+        .image-item img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }}
+
+        /* 响应式 */
+        @media (max-width: 768px) {{
+            .stage-row {{ flex-direction: column; }}
+            .stage-info {{ width: 100%; border-right: none; border-bottom: 1px solid #e2e8f0; }}
+            .stage-results {{ flex-direction: column; }}
+            .result-card {{ width: 100%; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 FrameLeap</h1>
+            <p>AI驱动的动态漫生成系统 - 4大阶段8个子流程</p>
+        </div>
+
+        <!-- 配置警告 -->
+        <div class="config-warning" id="configWarning">
+            <div class="warning-content">
+                <span class="warning-icon">⚠️</span>
+                <div class="warning-text">
+                    <strong>未配置千问 API Key</strong><br>
+                    剧本生成将使用简化规则。请配置 API Key 以获得更好的生成效果。
+                </div>
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="input-section">
+            <div class="input-group">
+                <label>📝 输入你的故事</label>
+                <textarea id="inputText" placeholder="输入你想要生成的故事...&#10;&#10;例如：&#10;一个少年在雨夜中遇到了神秘少女。少女告诉他，他是被选中的勇者，必须拯救即将崩塌的世界。"></textarea>
+            </div>
+            <div class="controls">
+                <select id="style">
+                    <option value="anime">🎨 日式动漫</option>
+                    <option value="manhwa">📖 韩漫</option>
+                    <option value="manhua">🏮 国漫</option>
+                    <option value="watercolor">🎨 水彩风</option>
+                    <option value="oil">🖼️ 油画风</option>
+                </select>
+                <select id="resolution">
+                    <option value="1080p">📺 1080P 横屏</option>
+                    <option value="1080p_v">📱 1080P 竖屏</option>
+                    <option value="720p">📺 720P</option>
+                </select>
+                <button class="btn btn-primary" id="generateBtn" onclick="startGeneration()">
+                    🚀 开始生成
+                </button>
+            </div>
+        </div>
+
+        <!-- 进度区域 -->
+        <div class="progress-section" id="progressSection">
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="progress-text" id="progressText">准备中...</div>
+        </div>
+
+        <!-- 流程展示区域 -->
+        <div class="flow-section" id="flowSection">
+            <div id="pipelineContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentSessionId = null;
+        let ws = null;
+        const STAGE_DEFINITIONS = {stages_json};
+        const STAGE_GROUPS = {groups_json};
+        const STAGE_ORDER = {order_json};
+        const STAGE_DEPENDENCIES = {deps_json};
+        const stageResults = {{}};
+
+        document.addEventListener('DOMContentLoaded', function() {{
+            checkLLMConfig();
+            renderInitialPipeline();
+        }});
+
+        function checkLLMConfig() {{
+            const llmConfigured = {str(llm_configured).lower()};
+            if (!llmConfigured || llmConfigured === 'false') {{
+                document.getElementById('configWarning').style.display = 'flex';
+            }}
+        }}
+
+        function renderInitialPipeline() {{
+            const container = document.getElementById('pipelineContainer');
+            container.innerHTML = '';
+
+            for (const [groupId, group] of Object.entries(STAGE_GROUPS)) {{
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'stage-group';
+
+                // 分组标题
+                const header = document.createElement('div');
+                header.className = 'group-header';
+                header.innerHTML = `
+                    <span class="group-icon">${{group.icon}}</span>
+                    <span class="group-name">${{group.name}}</span>
+                `;
+                groupDiv.appendChild(header);
+
+                // 阶段列表
+                const stagesDiv = document.createElement('div');
+                stagesDiv.className = 'group-stages';
+
+                for (const stageId of group.stages) {{
+                    const stageDef = STAGE_DEFINITIONS[stageId];
+                    const row = createStageRow(stageId, stageDef);
+                    stagesDiv.appendChild(row);
+                }}
+
+                groupDiv.appendChild(stagesDiv);
+                container.appendChild(groupDiv);
+            }}
+        }}
+
+        function createStageRow(stageId, stageDef) {{
+            const row = document.createElement('div');
+            row.className = 'stage-row';
+            row.id = `stage-row-${{stageId}}`;
+
+            row.innerHTML = `
+                <div class="stage-info">
+                    <span class="stage-info-icon">${{stageDef.icon}}</span>
+                    <div class="stage-info-text">
+                        <div class="stage-info-sub">${{stageDef.sub_stage}}</div>
+                        <div class="stage-info-name">${{stageDef.short_name}}</div>
+                        <div class="stage-info-desc">${{stageDef.description}}</div>
+                    </div>
+                    <button class="stage-regenerate-btn" id="regenerate-${{stageId}}" onclick="regenerateStage('${{stageId}}')" disabled>
+                        🔄 重新生成
+                    </button>
+                    <div class="stage-status-indicator status-pending" id="status-${{stageId}}"></div>
+                </div>
+                <div class="stage-results" id="results-${{stageId}}">
+                    <div class="empty-state">等待中...</div>
+                </div>
+            `;
+
+            return row;
+        }}
+
+        async function startGeneration() {{
+            const text = document.getElementById('inputText').value.trim();
+            if (!text) {{
+                alert('请输入故事内容');
+                return;
+            }}
+
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ 生成中...';
+
+            try {{
+                const res = await fetch('/api/generate', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{
+                        text: text,
+                        style: document.getElementById('style').value,
+                        resolution: document.getElementById('resolution').value
+                    }})
+                }});
+
+                const data = await res.json();
+                if (data.error) {{
+                    alert('启动失败: ' + data.error);
+                    btn.disabled = false;
+                    btn.textContent = '🚀 开始生成';
+                    return;
+                }}
+
+                currentSessionId = data.session_id;
+                renderInitialPipeline();
+                document.getElementById('progressSection').classList.add('active');
+                document.getElementById('flowSection').classList.add('active');
+                connectWebSocket();
+
+            }} catch (e) {{
+                alert('请求失败: ' + e.message);
+                btn.disabled = false;
+                btn.textContent = '🚀 开始生成';
+            }}
+        }}
+
+        function connectWebSocket() {{
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${{protocol}}//${{window.location.host}}/ws`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {{
+                console.log('WebSocket connected');
+                if (currentSessionId) {{
+                    ws.send(JSON.stringify({{
+                        type: 'subscribe',
+                        session_id: currentSessionId
+                    }}));
+                }}
+            }};
+
+            ws.onmessage = (event) => {{
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            }};
+
+            ws.onclose = () => {{
+                console.log('WebSocket disconnected');
+                setTimeout(() => {{
+                    if (currentSessionId) {{
+                        connectWebSocket();
+                    }}
+                }}, 5000);
+            }};
+
+            ws.onerror = (error) => {{
+                console.error('WebSocket error:', error);
+            }};
+        }}
+
+        function handleWebSocketMessage(data) {{
+            console.log('收到消息:', data);
+
+            if (data.type === 'stage_update') {{
+                updateStageStatus(data.stage_id, data.status);
+
+                if (data.status === 'success' && data.output) {{
+                    addResultCard(data.stage_id, data.output);
+                }}
+
+                // 更新进度
+                let completed = 0;
+                STAGE_ORDER.forEach(id => {{
+                    const resultsContainer = document.getElementById(`results-${{id}}`);
+                    if (resultsContainer && !resultsContainer.querySelector('.empty-state')) {{
+                        completed++;
+                    }}
+                }});
+                const progress = Math.min(completed / STAGE_ORDER.length, 1);
+                const stageDef = STAGE_DEFINITIONS[data.stage_id];
+                const isRegeneration = data.is_regeneration ? '重新' : '';
+                updateProgress(progress, `${{isRegeneration}}${{stageDef ? stageDef.short_name : '处理中'}}`);
+
+            }} else if (data.type === 'complete') {{
+                generationComplete(data.output_path);
+            }} else if (data.type === 'error') {{
+                generationError(data.error);
+            }}
+        }}
+
+        function updateStageStatus(stageId, status) {{
+            const indicator = document.getElementById(`status-${{stageId}}`);
+            if (indicator) {{
+                indicator.className = `stage-status-indicator status-${{status}}`;
+            }}
+
+            // 更新重新生成按钮状态
+            const regenerateBtn = document.getElementById(`regenerate-${{stageId}}`);
+            if (regenerateBtn) {{
+                // 检查依赖是否满足
+                const deps = STAGE_DEPENDENCIES[stageId] || [];
+                let canRegenerate = deps.every(depId => {{
+                    const depIndicator = document.getElementById(`status-${{depId}}`);
+                    return depIndicator && depIndicator.classList.contains('status-success');
+                }});
+
+                // 只对已实现的阶段允许重新生成
+                const implementedStages = ['1_0', '2_1', '2_2', '2_3'];
+                regenerateBtn.disabled = !canRegenerate || status === 'running' || !implementedStages.includes(stageId);
+            }}
+        }}
+
+        async function regenerateStage(stageId) {{
+            if (!currentSessionId) {{
+                alert('请先生成完整流程');
+                return;
+            }}
+
+            const regenerateBtn = document.getElementById(`regenerate-${{stageId}}`);
+            regenerateBtn.disabled = true;
+            regenerateBtn.textContent = '⏳ 生成中...';
+
+            updateStageStatus(stageId, 'running');
+
+            try {{
+                const res = await fetch('/api/regenerate_stage', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{
+                        session_id: currentSessionId,
+                        stage_id: stageId
+                    }})
+                }});
+
+                const data = await res.json();
+                if (data.error) {{
+                    alert('重新生成失败: ' + data.error);
+                    updateStageStatus(stageId, 'failed');
+                }}
+            }} catch (e) {{
+                alert('请求失败: ' + e.message);
+                updateStageStatus(stageId, 'failed');
+            }} finally {{
+                regenerateBtn.textContent = '🔄 重新生成';
+            }}
+        }}
+
+        function addResultCard(stageId, output) {{
+            const resultsContainer = document.getElementById(`results-${{stageId}}`);
+            if (!resultsContainer) return;
+
+            const emptyState = resultsContainer.querySelector('.empty-state');
+            if (emptyState) {{
+                emptyState.remove();
+            }}
+
+            if (!stageResults[stageId]) {{
+                stageResults[stageId] = [];
+            }}
+            const resultIndex = stageResults[stageId].length;
+            stageResults[stageId].push(output);
+
+            const card = createResultCard(stageId, output, resultIndex);
+            resultsContainer.appendChild(card);
+            resultsContainer.scrollLeft = resultsContainer.scrollWidth;
+        }}
+
+        function createResultCard(stageId, output, index) {{
+            const card = document.createElement('div');
+            card.className = 'result-card';
+
+            const now = new Date();
+            const timeStr = `${{now.getHours().toString().padStart(2, '0')}}:${{now.getMinutes().toString().padStart(2, '0')}}:${{now.getSeconds().toString().padStart(2, '0')}}`;
+
+            let content = '';
+
+            switch(stageId) {{
+                case '1_0':
+                    content = `
+                        <div class="result-text">
+                            <div><strong>输入文本:</strong> ${{output.input_text || ''}}</div>
+                            <div style="margin-top:8px;"><strong>风格:</strong> ${{output.style || 'anime'}}</div>
+                            <div><strong>分辨率:</strong> ${{output.resolution || '1080p'}}</div>
+                        </div>
+                    `;
+                    break;
+
+                case '2_1':
+                    content = `
+                        <div class="result-text">
+                            <div style="margin-bottom:8px;"><strong>标题:</strong> ${{output.title || '未命名'}}</div>
+                            <div style="margin-bottom:8px;"><strong>类型:</strong> ${{output.story_type || '未知'}}</div>
+                            <div style="margin-bottom:8px;"><strong>主题:</strong> ${{output.theme || '未知'}}</div>
+                            <div style="margin-bottom:12px;"><strong>场景数:</strong> ${{output.scene_count || 0}} | <strong>角色数:</strong> ${{output.character_count || 0}}</div>
+                        </div>
+                    `;
+                    if (output.scenes && output.scenes.length > 0) {{
+                        content += `<div class="scene-list">`;
+                        output.scenes.slice(0, 3).forEach(scene => {{
+                            content += `
+                                <div class="scene-item">
+                                    <div class="scene-title">场景 ${{scene.order + 1}}: ${{scene.title}}</div>
+                                    <div class="scene-desc">${{(scene.description || '').substring(0, 80)}}...</div>
+                                </div>
+                            `;
+                        }});
+                        if (output.scenes.length > 3) {{
+                            content += `<div style="text-align:center;color:#94a3b8;font-size:12px;padding:8px;">...还有 ${{output.scenes.length - 3}} 个场景</div>`;
+                        }}
+                        content += `</div>`;
+                    }}
+                    break;
+
+                case '2_2':
+                    content = `
+                        <div class="result-text">
+                            <div><strong>已准备场景描述:</strong> ${{output.description_count || 0}} 个场景</div>
+                        </div>
+                    `;
+                    break;
+
+                case '2_3':
+                    if (output.image_paths && output.image_paths.length > 0) {{
+                        content = `<div class="image-grid">`;
+                        output.image_paths.slice(0, 4).forEach((path, idx) => {{
+                            const fileName = path.split(/[\\/]/).pop();
+                            const imageUrl = '/temp/' + fileName;
+                            content += `
+                                <div class="image-item">
+                                    <img src="${{imageUrl}}" alt="场景 ${{idx + 1}}" onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:11px;\\'>加载失败</div>'">
+                                </div>
+                            `;
+                        }});
+                        if (output.image_paths.length > 4) {{
+                            content += `<div style="grid-column:1/-1;text-align:center;color:#94a3b8;font-size:12px;padding:8px;">...还有 ${{output.image_paths.length - 4}} 张图像</div>`;
+                        }}
+                        content += `</div>`;
+                    }} else {{
+                        content = `<div class="result-text">无图像生成</div>`;
+                    }}
+                    break;
+
+                default:
+                    content = `<div class="result-text">该阶段尚未实现</div>`;
+                    break;
+            }}
+
+            card.innerHTML = `
+                <div class="result-header">
+                    <span class="result-title">#${{index + 1}}</span>
+                    <span class="result-time">${{timeStr}}</span>
+                </div>
+                <div class="result-content">
+                    ${{content}}
+                </div>
+            `;
+
+            return card;
+        }}
+
+        function updateProgress(progress, message) {{
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+
+            progressBar.style.width = `${{progress * 100}}%`;
+            progressText.textContent = `${{message}} (${{Math.round(progress * 100)}}%)`;
+        }}
+
+        function generationComplete(outputPath) {{
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = false;
+            btn.textContent = '🚀 开始生成';
+            updateProgress(1, '生成完成！');
+        }}
+
+        function generationError(error) {{
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = false;
+            btn.textContent = '🚀 开始生成';
+            alert('生成失败: ' + error);
+        }}
+    </script>
+</body>
+</html>
+    """
+
+
+@app.get("/api/config/check")
+async def check_config():
+    """检查配置状态"""
+    return {
+        "llm_configured": bool(config.api.llm_api_key),
+        "llm_provider": config.api.llm_provider,
+        "llm_model": config.api.llm_model
+    }
+
+
+@app.post("/api/generate")
+async def start_generation(request: GenerateRequest):
+    """开始生成"""
+    session = create_session(request.text, request.style, request.resolution)
+    asyncio.create_task(run_generation_task(session.id))
+    return {
+        "session_id": session.id,
+        "stages": STAGE_DEFINITIONS
+    }
+
+
+@app.post("/api/regenerate_stage")
+async def regenerate_stage_api(request: RegenerateRequest, background_tasks: BackgroundTasks):
+    """重新生成指定阶段"""
+    session = get_session(request.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    background_tasks.add_task(run_stage_regeneration, request.session_id, request.stage_id)
+
+    return {
+        "success": True,
+        "message": f"开始重新生成阶段: {request.stage_id}"
+    }
+
+
+@app.get("/api/sessions")
+async def list_sessions_api():
+    """列出所有生成会话"""
+    sessions = list_sessions()
+    return {
+        "sessions": [
+            {
+                "id": s.id,
+                "input": s.input_text[:100],
+                "style": s.style,
+                "resolution": s.resolution,
+                "create_time": s.create_time.isoformat(),
+                "progress": s.get_progress(),
+            }
+            for s in sessions
+        ]
+    }
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session_api(session_id: str):
+    """获取生成会话详情"""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return {
+        "id": session.id,
+        "input": session.input_text,
+        "style": session.style,
+        "resolution": session.resolution,
+        "create_time": session.create_time.isoformat(),
+        "progress": session.get_progress(),
+        "stages": {
+            stage_id: {
+                "id": node.id,
+                "stage_id": node.stage_id,
+                "stage_name": node.stage_name,
+                "status": node.status.value,
+                "start_time": node.start_time.isoformat() if node.start_time else None,
+                "end_time": node.end_time.isoformat() if node.end_time else None,
+                "duration": node.duration,
+                "error_message": node.error_message,
+                "output": node.output,
+                "progress": node.progress,
+            }
+            for stage_id, node in session.nodes.items()
+        }
+    }
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket端点，推送更新"""
+    await websocket.accept()
+
+    session_id = None
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+
+            if data.get("type") == "subscribe":
+                session_id = data.get("session_id")
+                session = get_session(session_id)
+
+                if session:
+                    await manager.connect(websocket, session_id)
+
+                    # 发送当前会话状态
+                    await websocket.send_json({
+                        "type": "session_init",
+                        "session_id": session.id,
+                        "stages": STAGE_DEFINITIONS,
+                        "groups": STAGE_GROUPS,
+                        "order": STAGE_ORDER,
+                        "progress": session.get_progress(),
+                        "nodes": {
+                            stage_id: {
+                                "status": node.status.value,
+                                "output": node.output,
+                                "duration": node.duration,
+                                "error": node.error_message
+                            }
+                            for stage_id, node in session.nodes.items()
+                        }
+                    })
+
+    except WebSocketDisconnect:
+        if session_id:
+            manager.disconnect(websocket, session_id)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
 
 if __name__ == "__main__":
     import uvicorn
